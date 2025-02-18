@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <script src="https://unpkg.com/htmx.org"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-200 p-6">
+    <div class="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-lg">
+        <h1 class="text-2xl font-bold mb-4">{{.Title}}</h1>
+
+        <!-- Email Form -->
+        <form method="POST" action="/composer">
+            <div class="mb-4">
+                <label for="recipient" class="block text-sm font-semibold mb-2">Recipient</label>
+                <input type="email" name="recipient" id="recipient" class="mb-2 p-2 w-full border rounded" required>
+            </div>
+
+            <div class="mb-4">
+                <label for="subject" class="block text-sm font-semibold mb-2">Subject</label>
+                <input type="text" name="subject" id="subject" class="mb-2 p-2 w-full border rounded" required>
+            </div>
+
+            <div class="mb-4">
+                <label for="body" class="block text-sm font-semibold mb-2">Body</label>
+                <textarea name="body" id="body" class="mb-2 p-2 w-full border rounded" rows="5" required></textarea>
+            </div>
+
+            <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-700">Send Email</button>
+        </form>
+
+        <h2 class="mt-6 text-xl font-semibold">Recipients:</h2>
+        <ul>
+            {{range .Recipients}}
+                <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+</body>
+</html>

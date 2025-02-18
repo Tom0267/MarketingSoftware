@@ -1,165 +1,77 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net"
-	"net/smtp"
-	"os"
+	"html/template"
+	"log"
+	"net/http"
 	"strings"
+	"sync"
 )
 
-// MailingListInterface defines the behavior of a mailing list
-type MailingListInterface interface {
-	AddSubscriber(email string)
-	RemoveSubscriber(email string)
-	sendEmailTLS(from, password, smtpServer string, to []string, subject, body string) error
-	GetAllSubscribers() []string
+type campaign struct {
+	ID    int    `json:"id"`
+	email string `json:"email"`
 }
 
-// MailingList is a concrete implementation of MailingListInterface
-type MailingList struct {
-	Emails map[string]bool // map to store unique email addresses
-}
+var (
+	posts   = make(map[int]campaign) // a map that will hold our posts in memory
+	nextID  = 1                      // a variable to help create unique post IDs
+	postsMu sync.Mutex               // a mutex to synchronize access to the posts map
+)
 
-// NewMailingList initializes and returns a new MailingList
-func NewMailingList() *MailingList {
-	return &MailingList{
-		Emails: make(map[string]bool),
-	}
-}
-
-// AddSubscriber adds an email to the mailing list
-func (ml *MailingList) AddSubscriber(email string) {
-	if ml.Emails[email] {
-		fmt.Println("Email already subscribed:", email)
-		return
-	}
-	ml.Emails[email] = true
-	fmt.Println("Successfully subscribed:", email)
-}
-
-// RemoveSubscriber removes an email from the mailing list
-func (ml *MailingList) RemoveSubscriber(email string) {
-	if !ml.Emails[email] {
-		fmt.Println("Email not found:", email)
-		return
-	}
-	delete(ml.Emails, email)
-	fmt.Println("Successfully unsubscribed:", email)
-}
-
-// GetAllSubscribers returns a list of all subscribers
-func (ml *MailingList) GetAllSubscribers() []string {
-	subscribers := make([]string, 0, len(ml.Emails))
-	for email := range ml.Emails {
-		subscribers = append(subscribers, email)
-	}
-	return subscribers
-}
-
-func (ml *MailingList) sendEmailTLS(from, password, smtpServer string, to []string, subject, body string) error {
-	host, _, _ := net.SplitHostPort(smtpServer)
-	auth := smtp.PlainAuth("", from, password, host)
-
-	// Establish a TLS connection
-	conn, err := tls.Dial("tcp", smtpServer, &tls.Config{ServerName: host})
-	if err != nil {
-		return fmt.Errorf("failed to establish TLS connection: %v", err)
-	}
-	client, err := smtp.NewClient(conn, host)
-	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %v", err)
-	}
-	defer client.Quit()
-
-	// Authenticate
-	if err = client.Auth(auth); err != nil {
-		return fmt.Errorf("authentication failed: %v", err)
-	}
-
-	// Set sender and recipients
-	if err = client.Mail(from); err != nil {
-		return fmt.Errorf("failed to set sender: %v", err)
-	}
-	for _, addr := range to {
-		if err = client.Rcpt(addr); err != nil {
-			return fmt.Errorf("failed to set recipient %s: %v", addr, err)
-		}
-	}
-
-	// Write the email body
-	w, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("failed to get writer: %v", err)
-	}
-	msg := []byte(fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, body))
-	_, err = w.Write(msg)
-	if err != nil {
-		return fmt.Errorf("failed to write message: %v", err)
-	}
-	if err = w.Close(); err != nil {
-		return fmt.Errorf("failed to close writer: %v", err)
-	}
-
-	fmt.Println("Email sent successfully!")
-	return nil
-}
-
-func getEmail() string {
-	data, err := os.ReadFile("C:/Email.txt") // Replace with your file name
-	if err != nil {
-		fmt.Printf("Failed to read file: %v\n", err)
-		return ""
-	}
-
-	// Convert the byte slice to a string
-	content := string(data)
-
-	//split the content by new line
-	lines := strings.Split(content, "\n")
-	email := lines[0]
-	email = strings.TrimSuffix(email, "\r")
-	return email
-}
-
-func getPassword() string {
-	data, err := os.ReadFile("C:/Email.txt") // Replace with your file name
-	if err != nil {
-		fmt.Printf("Failed to read file: %v\n", err)
-		return ""
-	}
-
-	// Convert the byte slice to a string
-	content := string(data)
-
-	//split the content by new line
-	lines := strings.Split(content, "\n")
-	pass := lines[1]
-	pass = strings.TrimSuffix(pass, "\r")
-	return pass
-}
-
-// Main function demonstrating the use of the MailingListInterface
 func main() {
-	var mailingList MailingListInterface = NewMailingList()
+	//register the /Composer route
+	http.HandleFunc("/composer", composerHandler)
 
-	// Add subscribers
-	mailingList.AddSubscriber("121year@gmail.com")
-	mailingList.AddSubscriber("user2@example.com")
-	mailingList.AddSubscriber("user2@example.com") // duplicate test
+	//start the webserver
+	fmt.Println("Server is running at http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
 
-	// Remove a subscriber
-	mailingList.RemoveSubscriber("user2@example.com")
+func composerHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		handlePostComposer(w, r)
+	case "GET":
+		handleGetComposer(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
 
-	// List all subscribers
-	fmt.Println("Current Subscribers:", mailingList.GetAllSubscribers())
+func handleGetComposer(w http.ResponseWriter, r *http.Request) {
+	//set content type to text/html to ensure the browser renders HTML properly
+	w.Header().Set("Content-Type", "text/html")
 
-	email := getEmail()
-	password := getPassword()
+	//parse the compose template
+	tmpl, err := template.ParseFiles("templates/compose.tmpl") //load the template from the 'templates' folder
+	if err != nil {
+		http.Error(w, "Error loading template", http.StatusInternalServerError)
+		return
+	}
 
-	// Send email to all remaining subscribers
-	subject := "Welcome to our mailing list!"
-	message := "Thank you for subscribing. We are excited to have you with us!"
-	mailingList.sendEmailTLS(email, password, "smtp.gmail.com:587", mailingList.GetAllSubscribers(), subject, message)
+	//execute the template with the provided data, writing the result to the ResponseWriter
+	err = tmpl.Execute(w, nil)
+	if err != nil {
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
+}
+
+func handlePostComposer(w http.ResponseWriter, r *http.Request) {
+	//parse the form data
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "Error parsing form", http.StatusInternalServerError)
+		return
+	}
+	//retrieve the form data from the request and send the email
+	recipient := r.FormValue("recipient")
+	recipients := strings.Split(recipient, ",") //split the recipient string by commas
+	fmt.Println(recipients)
+
+	sendMail(recipients, r.FormValue("subject"), r.FormValue("body"))
+
+	//respond back to the user
+	w.Write([]byte("Email sent successfully!"))
 }
