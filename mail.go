@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
 	"os"
 	"strings"
@@ -11,60 +10,88 @@ import (
 )
 
 func getRecipients() []string {
-	//get email credentials from a file elsewhere
-	data, err := os.ReadFile("C:/Recipients.txt") //replace with your file name
+	// get recipient emails from a file
+	data, err := os.ReadFile("C:/Recipients.txt") // replace with your file name
 	if err != nil {
+		fmt.Printf("error reading recipients file: %v\n", err)
 		return nil
 	}
-
-	//convert the byte slice to a string
+	// convert the byte slice to a string
 	content := string(data)
-
-	//split the content by new line
+	// split the content by new line and clean whitespace
 	lines := strings.Split(content, "\n")
-	//clean the lines by removing any whitespace
-	for i := range lines {
-		lines[i] = strings.TrimSuffix(lines[i], "\r")
-	}
-
-	//create an array to store the recipients
 	var recipients []string
-	for i := range lines {
-		recipients = append(recipients, lines[i])
+	for _, line := range lines {
+		cleaned := strings.TrimSpace(line)
+		if cleaned != "" {
+			recipients = append(recipients, cleaned)
+		}
 	}
 	return recipients
 }
 
-func sendMail(recipients []string, subject string, body string) {
-	// Load .env file (if present)
+func sendMail(recipients []string, subject string, body string, attachments []string, images map[string]string) error {
+	// load environment variables from .env file
 	err := godotenv.Load()
 	if err != nil {
-		fmt.Println("Error loading .env file")
-		return
+		return fmt.Errorf("error loading .env file: %v", err)
 	}
 
+	// get smtp credentials from environment variables
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort := 465
-
 	smtpUser := os.Getenv("SMTP_USER")
 	smtpPassword := os.Getenv("SMTP_PASSWORD")
 
+	// check if email credentials are available
 	if smtpHost == "" || smtpUser == "" || smtpPassword == "" {
-		fmt.Println("Failed to get email credentials")
-		return
+		return fmt.Errorf("failed to get email credentials from environment variables")
 	}
 
-	dialer := mail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPassword) //creates a new dialer to connect to the smtp server
+	// create a new dialer to connect to the smtp server
+	dialer := mail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPassword)
 
+	// create a new email message
 	m := mail.NewMessage()
-	m.SetHeader("From", "SMTP_USER") //set the sender
-	m.SetHeader("To", recipients...) //set the recipients
-	m.SetHeader("Subject", subject)  //set the subject
-	m.SetBody("text/plain", body)    //set the body
+	m.SetHeader("From", smtpUser)
+	m.SetHeader("To", recipients...)
+	m.SetHeader("Subject", subject)
+	// set body as html to support embedded images
+	m.SetBody("text/html", body)
 
-	dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true} //change to false in production to verify the server's certificate
-	if err := dialer.DialAndSend(m); err != nil {
-		panic(err)
+	// attach multiple files
+	for _, attachmentPath := range attachments {
+		// check if file exists and is not a directory
+		info, err := os.Stat(attachmentPath)
+		if err != nil {
+			return fmt.Errorf("error checking attachment file: %v", err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("attachment path is a directory, not a file")
+		}
+		m.Attach(attachmentPath)
 	}
-	fmt.Println("Email sent successfully!")
+
+	// embed images in the email body
+	for cid, imagePath := range images {
+		info, err := os.Stat(imagePath)
+		if err != nil {
+			return fmt.Errorf("error checking image file: %v", err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("image path is a directory, not a file")
+		}
+		// embed the image with the provided cid
+		m.Embed(imagePath, mail.SetHeader(map[string][]string{
+			"Content-ID": {fmt.Sprintf("<%s>", cid)},
+		}))
+		body = strings.Replace(body, cid, fmt.Sprintf("cid:%s", cid), -1)
+	}
+
+	// send the email
+	err = dialer.DialAndSend(m)
+	if err != nil {
+		return fmt.Errorf("error sending email: %v", err)
+	}
+	return nil
 }

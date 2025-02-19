@@ -1,42 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}}</title>
-    <script src="https://unpkg.com/htmx.org"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>send email</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- include quill css -->
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <!-- include quill js -->
+  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+  <script src="https://unpkg.com/htmx.org"></script>
 </head>
-<body class="bg-gray-200 p-6">
-    <div class="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-lg">
-        <h1 class="text-2xl font-bold mb-4">{{.Title}}</h1>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+  <div class="bg-white rounded-lg shadow-lg w-full max-w-xl p-8">
+    <h2 class="text-2xl font-bold mb-6 text-center">send email</h2>
+    <form id="emailForm" class="space-y-4" enctype="multipart/form-data" method="POST" action="/composer">
+      <!-- recipients input -->
+      <div>
+        <label for="recipients" class="block text-sm font-semibold text-gray-700">recipients (comma-separated)</label>
+        <!-- change name to recipient; will split on server -->
+        <input type="text" id="recipients" name="recipient" placeholder="e.g. email1@example.com, email2@example.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+      </div>
+      <!-- subject input -->
+      <div>
+        <label for="subject" class="block text-sm font-semibold text-gray-700">subject</label>
+        <input type="text" id="subject" name="subject" placeholder="enter subject" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+      </div>
+      <!-- email body with quill editor -->
+      <div>
+        <label for="editor" class="block text-sm font-semibold text-gray-700">body (rich text supported, paste images directly)</label>
+        <!-- quill editor container -->
+        <div id="editor" class="mt-1 bg-white h-40 rounded-md border border-gray-300"></div>
+        <!-- hidden input to store quill html content -->
+        <input type="hidden" id="body" name="body">
+      </div>
+      <!-- attachments input -->
+      <div>
+        <label for="attachments" class="block text-sm font-semibold text-gray-700">attachments (multiple files allowed)</label>
+        <input type="file" id="attachments" name="attachments" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:text-sm file:font-semibold file:bg-gray-50 hover:file:bg-gray-100">
+      </div>
+      <!-- images input (for additional images to embed) -->
+      <div>
+        <label for="images" class="block text-sm font-semibold text-gray-700">embed images in body (optional)</label>
+        <input type="file" id="images" name="images" multiple accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:text-sm file:font-semibold file:bg-gray-50 hover:file:bg-gray-100">
+      </div>
+      <!-- hidden inputs for filename and filetype (for chunked uploads, if needed) -->
+      <input type="hidden" id="filename" name="filename">
+      <input type="hidden" id="filetype" name="filetype">
+      <!-- submit button -->
+      <div>
+        <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">send email</button>
+      </div>
+    </form>
+  </div>
 
-        <!-- Email Form -->
-        <form method="POST" action="/composer">
-            <div class="mb-4">
-                <label for="recipient" class="block text-sm font-semibold mb-2">Recipient</label>
-                <input type="email" name="recipient" id="recipient" class="mb-2 p-2 w-full border rounded" required>
-            </div>
+  <script>
+    // initialise quill editor
+    var quill = new Quill('#editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          ['blockquote', 'code-block'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link', 'image']
+        ]
+      }
+    });
 
-            <div class="mb-4">
-                <label for="subject" class="block text-sm font-semibold mb-2">Subject</label>
-                <input type="text" name="subject" id="subject" class="mb-2 p-2 w-full border rounded" required>
-            </div>
-
-            <div class="mb-4">
-                <label for="body" class="block text-sm font-semibold mb-2">Body</label>
-                <textarea name="body" id="body" class="mb-2 p-2 w-full border rounded" rows="5" required></textarea>
-            </div>
-
-            <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-700">Send Email</button>
-        </form>
-
-        <h2 class="mt-6 text-xl font-semibold">Recipients:</h2>
-        <ul>
-            {{range .Recipients}}
-                <li>{{.}}</li>
-            {{end}}
-        </ul>
-    </div>
+    // on form submission, copy quill editor content to hidden input
+    document.getElementById('emailForm').addEventListener('submit', function(event) {
+      // copy quill editor content to the hidden input
+      document.getElementById('body').value = quill.root.innerHTML;
+      // note: this form submits normally as multipart/form-data
+    });
+  </script>
 </body>
 </html>
