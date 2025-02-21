@@ -3,77 +3,305 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>send email</title>
+  <title>Email Composer</title>
+  <!-- Tailwind CSS -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <!-- include quill css -->
+  <!-- Quill Editor CSS -->
   <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-  <!-- include quill js -->
+  <!-- Quill Editor JS -->
   <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-  <script src="https://unpkg.com/htmx.org"></script>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-  <div class="bg-white rounded-lg shadow-lg w-full max-w-xl p-8">
-    <h2 class="text-2xl font-bold mb-6 text-center">send email</h2>
-    <form id="emailForm" class="space-y-4" enctype="multipart/form-data" method="POST" action="/composer">
-      <!-- recipients input -->
+  <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-8">
+    <h2 class="text-2xl font-semibold mb-6 text-center text-gray-800">Compose Email</h2>
+    <form id="emailForm" class="space-y-6" enctype="multipart/form-data" method="POST" action="/composer">
+      <!-- Recipients Input -->
       <div>
-        <label for="recipients" class="block text-sm font-semibold text-gray-700">recipients (comma-separated)</label>
-        <!-- change name to recipient; will split on server -->
-        <input type="text" id="recipients" name="recipient" placeholder="e.g. email1@example.com, email2@example.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+        <label for="recipients" class="block text-sm font-medium text-gray-700">Recipients</label>
+        <input type="text" id="recipients" name="recipients" placeholder="e.g., user@example.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
       </div>
-      <!-- subject input -->
+      <!-- Subject Input -->
       <div>
-        <label for="subject" class="block text-sm font-semibold text-gray-700">subject</label>
-        <input type="text" id="subject" name="subject" placeholder="enter subject" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+        <label for="subject" class="block text-sm font-medium text-gray-700">Subject</label>
+        <input type="text" id="subject" name="subject" placeholder="Email Subject" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
       </div>
-      <!-- email body with quill editor -->
+      <!-- Email Body -->
       <div>
-        <label for="editor" class="block text-sm font-semibold text-gray-700">body (rich text supported, paste images directly)</label>
-        <!-- quill editor container -->
+        <label id="title" class="block text-sm font-medium text-gray-700">Message</label>
         <div id="editor" class="mt-1 bg-white h-40 rounded-md border border-gray-300"></div>
-        <!-- hidden input to store quill html content -->
-        <input type="hidden" id="body" name="body">
+        <input type= "hidden" id="body" name="body">
       </div>
-      <!-- attachments input -->
+      <!-- Notification Area -->
+      <div id="notification" class="hidden p-4 mb-4 rounded-md"></div>
+      <!-- Attachments Input -->
       <div>
-        <label for="attachments" class="block text-sm font-semibold text-gray-700">attachments (multiple files allowed)</label>
-        <input type="file" id="attachments" name="attachments" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:text-sm file:font-semibold file:bg-gray-50 hover:file:bg-gray-100">
+        <label for="attachments" class="block text-sm font-medium text-gray-700">Attachments</label>
+        <input type="file" id="attachments" name="attachments[]" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:bg-gray-50 hover:file:bg-gray-100">
       </div>
-      <!-- images input (for additional images to embed) -->
-      <div>
-        <label for="images" class="block text-sm font-semibold text-gray-700">embed images in body (optional)</label>
-        <input type="file" id="images" name="images" multiple accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:text-sm file:font-semibold file:bg-gray-50 hover:file:bg-gray-100">
-      </div>
-      <!-- hidden inputs for filename and filetype (for chunked uploads, if needed) -->
-      <input type="hidden" id="filename" name="filename">
-      <input type="hidden" id="filetype" name="filetype">
-      <!-- submit button -->
-      <div>
-        <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">send email</button>
+      <!-- Canned Email and Submit Buttons -->
+      <div class="flex justify-between">
+        <button type="button" id="openTemplateModal" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          Canned Emails
+        </button>
+        <button type="submit" class="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+          Send Email
+        </button>
       </div>
     </form>
   </div>
 
+  <!-- Canned Email Templates Modal -->
+  <div id="templateModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">Canned Email Templates</h3>
+        <button id="closeTemplateModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+      </div>
+      <!-- Template List -->
+      <ul id="templateList" class="space-y-2 mb-4">
+        <!-- Templates will be dynamically added here -->
+      </ul>
+      <!-- Add New Template Button -->
+      <button id="addTemplateButton" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        Add New Template
+      </button>
+    </div>
+  </div>
+
+  <!-- Add Template Modal -->
+  <div id="addTemplateModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">Add New Template</h3>
+        <button id="closeAddTemplateModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+      </div>
+      <form id="templateForm" class="space-y-4">
+        <div>
+          <label for="templateName" class="block text-sm font-medium text-gray-700">Template Name</label>
+          <input type="text" id="templateName" name="templateName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <div>
+          <label for="templateContent" class="block text-sm font-medium text-gray-700">Template Content</label>
+          <textarea id="templateContent" name="templateContent" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button type="button" id="cancelAddTemplate" class="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">
+            Cancel
+          </button>
+          <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            Save Template
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!---------------------- JavaScript --------------------------->
   <script>
-    // initialise quill editor
-    var quill = new Quill('#editor', {
-      theme: 'snow',
-      modules: {
-        toolbar: [
-          [{ header: [1, 2, false] }],
-          ['bold', 'italic', 'underline', 'strike'],
-          ['blockquote', 'code-block'],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          ['link', 'image']
-        ]
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize Quill editor
+      var quill = new Quill('#editor', {theme: 'snow'});
+      let selectedFiles = [];
+
+      document.getElementById('attachments').addEventListener('change', function(event) {
+    for (let file of event.target.files) {
+      selectedFiles.push(file);
+    }
+    updateAttachmentList();
+  });
+  // Open & Close Template Modal
+  document.getElementById('openTemplateModal').addEventListener('click', function () {
+    loadTemplates(); // Load templates from the database
+    document.getElementById('templateModal').classList.remove('hidden');
+  });
+
+  document.getElementById('closeTemplateModal').addEventListener('click', function () {
+    document.getElementById('templateModal').classList.add('hidden');
+  });
+
+  // Open & Close Add Template Modal
+  document.getElementById('addTemplateButton').addEventListener('click', function () {
+    document.getElementById('addTemplateModal').classList.remove('hidden');
+  });
+
+  document.getElementById('closeAddTemplateModal').addEventListener('click', function () {
+    document.getElementById('addTemplateModal').classList.add('hidden');
+  });
+
+  // Handle Email Form Submission
+  document.getElementById('emailForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+    var emailBody = quill.root.innerHTML;
+
+    var sendButton = event.target.querySelector('button[type="submit"]');
+    sendButton.disabled = true;
+
+    // Update hidden input with email body
+    document.getElementById('body').value = emailBody;
+
+    // Create FormData object
+    var formData = new FormData(this);
+    //attach the files to the form data
+    for (let file of selectedFiles) {
+      formData.append('attachments[]', file);
+    }
+    //print the form data to the console
+    for (var pair of formData.entries()) {
+      console.log(pair[0] + ', ' + pair[1]);
+    }
+    // Validate form fields before sending
+    var recipients = formData.get('recipients');
+    if (!recipients || !validateEmails(recipients.trim())) {
+        showNotification('Invalid email format. Use comma-separated valid emails.', 'error');
+        sendButton.disabled = false;
+        return;
+    }
+    if (formData.get('subject').trim() === '') {
+      showNotification('Please enter a subject', 'error');
+      sendButton.disabled = false;
+      return;
+    }
+    if (quill.getText().trim() === '') {  // Checking if the editor has visible text
+      showNotification('Please enter an email body', 'error');
+      sendButton.disabled = false;
+      return;
+    }
+
+    // Send the form data via fetch
+    fetch('/composer', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(errorData => {
+              showNotification(errorData.message, 'error');
+                throw new Error(errorData.message || "Unknown error");
+            });
+        }
+        showNotification('Email sent successfully!', 'success');
+        quill.setContents([]);    //clear the editor
+        selectedFiles = [];       //clear the selected files
+        updateAttachmentList();   //clear the attachment list
+        this.reset();     //reset the form
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    })
+    .finally(() => {
+      sendButton.disabled = false; // Re-enable submit button after request
+    });
+  });
+
+    // Email validation function
+    function validateEmails(emailString) {
+      var emailArray = emailString.split(',').map(email => email.trim());
+      var emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      return emailArray.every(email => emailRegex.test(email));
+    }
+
+  // Load Canned Emails from Database
+  function loadTemplates() {
+    fetch('/templates', { method: 'GET' })
+      .then(response => response.json())  // This line parses the response as JSON
+      .then(templates => {
+        if (templates.length === 0) {
+          return;
+        }
+
+        const templateList = document.getElementById('templateList');
+        templateList.innerHTML = '';  // Clear the template list before adding new ones
+
+        templates.forEach(template => {
+          const li = document.createElement('li');
+          li.classList.add('p-2', 'border', 'rounded', 'cursor-pointer', 'hover:bg-gray-200');
+          li.textContent = template.Title;
+          li.onclick = function () {
+            quill.root.innerHTML = template.Content;  // Insert template content into email body
+            document.getElementById('templateModal').classList.add('hidden');  // Close modal
+          };
+          templateList.appendChild(li);
+        });
+      })
+      .catch(error => {
+        console.error('Error loading templates:', error);
+        showNotification('Error loading templates.', 'error');
+      });
+  }
+
+   // Save New Template to Database
+    document.getElementById('templateForm').addEventListener('submit', function (event) {
+      event.preventDefault();
+      
+      const templateName = document.getElementById('templateName').value.trim();
+      const templateContent = document.getElementById('templateContent').value.trim();
+
+      if (!templateName || !templateContent) {
+        showNotification('Please enter a template name and content.', 'error');
+        return;
       }
+
+      fetch('/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({Title: templateName, Content: templateContent})
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success === "true") {
+            showNotification('Template saved successfully!', 'success');
+            loadTemplates(); // Refresh template list
+            document.getElementById('addTemplateModal').classList.add('hidden'); // Close modal
+            document.getElementById('templateForm').reset();
+          } else {
+            showNotification('Error saving template.', 'error');
+          }
+        })
+        .catch(error => console.error('Error saving template:', error));
     });
 
-    // on form submission, copy quill editor content to hidden input
-    document.getElementById('emailForm').addEventListener('submit', function(event) {
-      // copy quill editor content to the hidden input
-      document.getElementById('body').value = quill.root.innerHTML;
-      // note: this form submits normally as multipart/form-data
+    function updateAttachmentList() {
+      let fileList = document.getElementById('fileList');
+      if (!fileList) {
+        fileList = document.createElement('ul');
+        fileList.id = 'fileList';
+        document.getElementById('attachments').insertAdjacentElement('afterend', fileList);
+      }
+      fileList.innerHTML = '';
+      selectedFiles.forEach((file, index) => {
+        let li = document.createElement('li');
+        li.textContent = file.name + ' ';
+        let removeBtn = document.createElement('button');
+        removeBtn.textContent = '❌';
+        removeBtn.classList.add('ml-2', 'text-red-500', 'hover:text-red-700');
+        removeBtn.onclick = function() {
+          selectedFiles.splice(index, 1);
+          updateAttachmentList();
+        };
+        li.appendChild(removeBtn);
+        fileList.appendChild(li);
+      });
+    }
+
+      // Function to display notifications
+      function showNotification(message, type) {
+        var notification = document.getElementById('notification');
+        notification.innerHTML = `<strong>${message}</strong>`;
+        notification.classList.remove('hidden');
+
+        if (type === 'success') {
+          notification.classList.add('bg-green-100', 'text-green-700');
+        } else if (type === 'error') {
+          notification.classList.add('bg-red-100', 'text-red-700');
+        }
+
+        notification.classList.remove('hidden');
+
+        // Hide the notification after 5 seconds
+        setTimeout(function() {
+          notification.classList.add('hidden');
+        }, 5000);
+      }
     });
   </script>
 </body>

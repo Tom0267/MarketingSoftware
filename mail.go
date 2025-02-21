@@ -93,5 +93,25 @@ func sendMail(recipients []string, subject string, body string, attachments []st
 	if err != nil {
 		return fmt.Errorf("error sending email: %v", err)
 	}
+	return err
+}
+
+func sendMailingListEmail(listName, subject, body string) error {
+	subscribers, err := getSubscribers(listName)
+	if err != nil {
+		return err
+	}
+
+	//ensure there are subscribers in the mailing list
+	if len(subscribers) == 0 {
+		return fmt.Errorf("no subscribers found in mailing list: %s", listName)
+	}
+
+	// Send email to all subscribers
+	err = sendMail(subscribers, subject, body, nil, nil)
+	if err != nil {
+		return fmt.Errorf("error sending mailing list email: %v", err)
+	}
+
 	return nil
 }

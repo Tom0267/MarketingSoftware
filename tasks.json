@@ -1,0 +1,22 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "build",
+        "type": "shell",
+        "command": "x86_64-w64-mingw32-gcc",
+        "args": [
+          "-g",
+          "main.go",
+          "-o",
+          "main.exe"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": ["$gcc"],
+        "detail": "Generated task by VS Code"
+      }
+    ]
+  }  
