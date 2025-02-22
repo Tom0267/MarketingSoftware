@@ -89,10 +89,10 @@ func getTemplates() ([]EmailTemplate, error) {
 	return templates, nil
 }
 
-func addMailingList(name string) error {
+func createMailingList(name string) error {
 	_, err := database.Exec(`INSERT INTO mailing_lists (name) VALUES (?)`, name)
 	if err != nil {
-		return fmt.Errorf("error adding mailing list: %v", err)
+		return fmt.Errorf("error creating mailing list: %v", err)
 	}
 	return nil
 }

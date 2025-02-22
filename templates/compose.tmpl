@@ -76,6 +76,13 @@
           </button>
         </div>
       </div>
+      <!-- Create Campaign Button -->
+      <button type="button" id="openCampaignModal" class="flex items-center space-x-1 text-gray-600 hover:text-blue-600 focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m-6-8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+        <span>Create Campaign</span>
+      </button>
       <!-- Scheduling Options (Hidden Popover) -->
       <div id="scheduleOptionsContainer" class="mt-4 hidden border-t pt-4">
         <div class="space-y-4">
@@ -114,6 +121,58 @@
       </button>
     </div>
   </div>
+
+  <!-- Campaign Modal -->
+  <div id="CampaignModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">Create a Marketing Campaign</h3>
+        <button id="closeCampaignModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+      </div>
+      <form id="campaignForm" class="space-y-4">
+        <div>
+          <label for="campaignName" class="block text-sm font-medium text-gray-700">Campaign Name</label>
+          <input type="text" id="campaignName" name="campaignName" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+        <div>
+          <label for="mailingList" class="block text-sm font-medium text-gray-700">Mailing List</label>
+          <textarea id="mailingList" name="mailingList" rows="4" placeholder="Enter email addresses separated by commas" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button type="button" id="cancelCampaign" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">Cancel</button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Create Campaign</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('campaignForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      const campaignName = document.getElementById('campaignName').value.trim();
+      const mailingList = document.getElementById('mailingList').value.trim();
+      if (!campaignName || !mailingList) {
+        showNotification('Please enter a campaign name and mailing list.', 'error');
+        return;
+      }
+      fetch('/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignName, mailingList })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showNotification('Campaign created successfully!', 'success');
+          document.getElementById('CampaignModal').classList.add('hidden');
+          document.getElementById('campaignForm').reset();
+        } else {
+          showNotification('Error creating campaign.', 'error');
+        }
+      })
+      .catch(error => console.error('Error creating campaign:', error));
+    });
+  </script>
 
   <!-- Add Template Modal -->
   <div id="addTemplateModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden">
@@ -188,6 +247,13 @@
         document.getElementById('addTemplateModal').classList.add('hidden');
       });
 
+      document.getElementById('openCampaignModal').addEventListener('click', function () {
+        document.getElementById('CampaignModal').classList.remove('hidden');
+      });
+      document.getElementById('closeCampaignModal').addEventListener('click', function () {
+        document.getElementById('CampaignModal').classList.add('hidden');
+      });
+
       document.getElementById('emailForm').addEventListener('submit', function(event) {
         event.preventDefault();
         var emailBody = quill.root.innerHTML;
@@ -245,6 +311,32 @@
           selectedFiles = [];
         });
       });
+
+      document.getElementById('campaignForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      const campaignName = document.getElementById('campaignName').value.trim();
+      const mailingList = document.getElementById('mailingList').value.trim();
+      if (!campaignName || !mailingList) {
+        showNotification('Please enter a campaign name and mailing list.', 'error');
+        return;
+      }
+      fetch('/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignName, mailingList })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showNotification('Campaign created successfully!', 'success');
+          document.getElementById('CampaignModal').classList.add('hidden');
+          document.getElementById('campaignForm').reset();
+        } else {
+          showNotification('Error creating campaign.', 'error');
+        }
+      })
+      .catch(error => console.error('Error creating campaign:', error));
+    });
 
       function validateEmails(emailString) {
         var emailArray = emailString.split(',').map(email => email.trim());

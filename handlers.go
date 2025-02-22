@@ -330,7 +330,7 @@ func addMailingListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := addMailingList(req.Name); err != nil {
+	if err := createMailingList(req.Name); err != nil {
 		http.Error(w, fmt.Sprintf("failed to add mailing list: %v", err), http.StatusInternalServerError)
 		return
 	}
