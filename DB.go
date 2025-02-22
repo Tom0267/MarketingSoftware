@@ -10,7 +10,7 @@ import (
 
 var database *sql.DB
 
-// EmailTemplate represents a template email
+// emailTemplate represents a template email
 type EmailTemplate struct {
 	ID      int    `json:"Id"`
 	Title   string `json:"Title"`
@@ -31,13 +31,13 @@ func initDB(dbPath string) (*sql.DB, error) {
 		"content" TEXT
 	);`
 
-	// Create mailing lists table
+	// create mailing lists table
 	createMailingListsSQL := `CREATE TABLE IF NOT EXISTS mailing_lists (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT UNIQUE
 	);`
 
-	// Create subscribers table
+	// create subscribers table
 	createSubscribersSQL := `CREATE TABLE IF NOT EXISTS subscribers (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		mailing_list_id INTEGER,

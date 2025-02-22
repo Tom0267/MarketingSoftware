@@ -1,52 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Email Composer</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Message - Email Composer</title>
   <!-- Tailwind CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <!-- Quill Editor CSS -->
-  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
   <!-- Quill Editor JS -->
   <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-  <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-8">
-    <h2 class="text-2xl font-semibold mb-6 text-center text-gray-800">Compose Email</h2>
-    <form id="emailForm" class="space-y-6" enctype="multipart/form-data" method="POST" action="/composer">
-      <!-- Recipients Input -->
-      <div>
-        <label for="recipients" class="block text-sm font-medium text-gray-700">Recipients</label>
-        <input type="text" id="recipients" name="recipients" placeholder="e.g., user@example.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+<body class="bg-gray-200 flex items-center justify-center min-h-screen p-4">
+  <!-- Outer container takes up 95% of viewport height and uses flex-col -->
+  <div class="bg-white shadow-xl rounded-lg w-full h-[95vh] flex flex-col mx-auto">
+    <!-- Header Bar -->
+    <div class="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
+      <h1 class="text-xl font-semibold">New Message</h1>
+    </div>
+    <!-- Compose Form Container -->
+    <form id="emailForm" class="p-6 flex flex-col flex-1 overflow-auto" enctype="multipart/form-data" method="POST" action="/composer">
+      <!-- Recipient and Subject Section -->
+      <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center">
+          <label for="recipients" class="w-full sm:w-20 font-medium text-gray-700 mb-1 sm:mb-0">To:</label>
+          <input type="text" id="recipients" name="recipients" placeholder="user@example.com" class="flex-1 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center">
+          <label for="subject" class="w-full sm:w-20 font-medium text-gray-700 mb-1 sm:mb-0">Subject:</label>
+          <input type="text" id="subject" name="subject" placeholder="Email Subject" class="flex-1 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
       </div>
-      <!-- Subject Input -->
-      <div>
-        <label for="subject" class="block text-sm font-medium text-gray-700">Subject</label>
-        <input type="text" id="subject" name="subject" placeholder="Email Subject" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+      <!-- Message Body - Flex Grow to Fill Vertical Space -->
+      <div class="mt-6 flex-1">
+        <div class="border rounded-md h-full">
+          <div id="editor" class="p-4 h-full"></div>
+        </div>
+        <input type="hidden" id="body" name="body" />
       </div>
-      <!-- Email Body -->
-      <div>
-        <label id="title" class="block text-sm font-medium text-gray-700">Message</label>
-        <div id="editor" class="mt-1 bg-white h-40 rounded-md border border-gray-300"></div>
-        <input type= "hidden" id="body" name="body">
+      <!-- Attachment List -->
+      <div id="fileList" class="mt-2"></div>
+      <!-- Bottom Toolbar -->
+      <div class="mt-6 flex flex-col sm:flex-row items-center justify-between border-t pt-4">
+        <!-- Left Toolbar Buttons -->
+        <div class="flex space-x-4 mb-4 sm:mb-0">
+          <!-- Attachment Button -->
+          <div>
+            <label for="attachments" class="cursor-pointer flex items-center space-x-1 text-gray-600 hover:text-blue-600">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828a4 4 0 10-5.656-5.656L7.757 9.757a6 6 0 108.486 8.486" />
+              </svg>
+              <span>Attach</span>
+            </label>
+            <input type="file" id="attachments" name="attachments[]" multiple class="hidden" />
+          </div>
+          <!-- Schedule Button -->
+          <button type="button" id="toggleScheduleButton" class="flex items-center space-x-1 text-gray-600 hover:text-blue-600 focus:outline-none">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-10 4h10m2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h3.586a1 1 0 01.707.293l1.414 1.414A1 1 0 0011.414 7H12a1 1 0 001-1V3m0 0h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
+            </svg>
+            <span>Schedule</span>
+          </button>
+          <!-- Canned Emails Button -->
+          <button type="button" id="openTemplateModal" class="flex items-center space-x-1 text-gray-600 hover:text-blue-600 focus:outline-none">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m-6-8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span>Canned</span>
+          </button>
+        </div>
+        <!-- Send Button -->
+        <div>
+          <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+            Send
+          </button>
+        </div>
       </div>
-      <!-- Notification Area -->
-      <div id="notification" class="hidden p-4 mb-4 rounded-md"></div>
-      <!-- Attachments Input -->
-      <div>
-        <label for="attachments" class="block text-sm font-medium text-gray-700">Attachments</label>
-        <input type="file" id="attachments" name="attachments[]" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:bg-gray-50 hover:file:bg-gray-100">
+      <!-- Scheduling Options (Hidden Popover) -->
+      <div id="scheduleOptionsContainer" class="mt-4 hidden border-t pt-4">
+        <div class="space-y-4">
+          <div>
+            <label for="schedule" class="block text-sm font-medium text-gray-700">Schedule Email</label>
+            <select id="schedule" name="schedule" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="now">Send Now</option>
+              <option value="15">In 15 Minutes</option>
+              <option value="30">In 30 Minutes</option>
+              <option value="60">In 1 Hour</option>
+              <option value="tomorrow">Tomorrow Morning (9:00 AM)</option>
+              <option value="custom">Custom Time</option>
+            </select>
+          </div>
+          <div id="customScheduleContainer" class="hidden">
+            <label for="customSchedule" class="block text-sm font-medium text-gray-700">Select Date & Time</label>
+            <input type="datetime-local" id="customSchedule" name="customSchedule" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+        </div>
       </div>
-      <!-- Canned Email and Submit Buttons -->
-      <div class="flex justify-between">
-        <button type="button" id="openTemplateModal" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          Canned Emails
-        </button>
-        <button type="submit" class="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
-          Send Email
-        </button>
-      </div>
+      <!-- Hidden Notification -->
+      <div id="notification" class="hidden mt-4 p-4 rounded-md"></div>
     </form>
   </div>
 
@@ -57,11 +108,7 @@
         <h3 class="text-xl font-semibold">Canned Email Templates</h3>
         <button id="closeTemplateModal" class="text-gray-500 hover:text-gray-700">&times;</button>
       </div>
-      <!-- Template List -->
-      <ul id="templateList" class="space-y-2 mb-4">
-        <!-- Templates will be dynamically added here -->
-      </ul>
-      <!-- Add New Template Button -->
+      <ul id="templateList" class="space-y-2 mb-4"></ul>
       <button id="addTemplateButton" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
         Add New Template
       </button>
@@ -78,226 +125,219 @@
       <form id="templateForm" class="space-y-4">
         <div>
           <label for="templateName" class="block text-sm font-medium text-gray-700">Template Name</label>
-          <input type="text" id="templateName" name="templateName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+          <input type="text" id="templateName" name="templateName" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
         </div>
         <div>
           <label for="templateContent" class="block text-sm font-medium text-gray-700">Template Content</label>
-          <textarea id="templateContent" name="templateContent" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+          <textarea id="templateContent" name="templateContent" rows="4" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
         </div>
         <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelAddTemplate" class="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">
-            Cancel
-          </button>
-          <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            Save Template
-          </button>
+          <button type="button" id="cancelAddTemplate" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">Cancel</button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Save Template</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!---------------------- JavaScript --------------------------->
+  <!-- JavaScript -->
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       // Initialize Quill editor
-      var quill = new Quill('#editor', {theme: 'snow'});
+      var quill = new Quill('#editor', { theme: 'snow' });
       let selectedFiles = [];
 
       document.getElementById('attachments').addEventListener('change', function(event) {
-    for (let file of event.target.files) {
-      selectedFiles.push(file);
-    }
-    updateAttachmentList();
-  });
-  // Open & Close Template Modal
-  document.getElementById('openTemplateModal').addEventListener('click', function () {
-    loadTemplates(); // Load templates from the database
-    document.getElementById('templateModal').classList.remove('hidden');
-  });
-
-  document.getElementById('closeTemplateModal').addEventListener('click', function () {
-    document.getElementById('templateModal').classList.add('hidden');
-  });
-
-  // Open & Close Add Template Modal
-  document.getElementById('addTemplateButton').addEventListener('click', function () {
-    document.getElementById('addTemplateModal').classList.remove('hidden');
-  });
-
-  document.getElementById('closeAddTemplateModal').addEventListener('click', function () {
-    document.getElementById('addTemplateModal').classList.add('hidden');
-  });
-
-  // Handle Email Form Submission
-  document.getElementById('emailForm').addEventListener('submit', function(event) {
-    event.preventDefault();
-    var emailBody = quill.root.innerHTML;
-
-    var sendButton = event.target.querySelector('button[type="submit"]');
-    sendButton.disabled = true;
-
-    // Update hidden input with email body
-    document.getElementById('body').value = emailBody;
-
-    // Create FormData object
-    var formData = new FormData(this);
-    //attach the files to the form data
-    for (let file of selectedFiles) {
-      formData.append('attachments[]', file);
-    }
-    //print the form data to the console
-    for (var pair of formData.entries()) {
-      console.log(pair[0] + ', ' + pair[1]);
-    }
-    // Validate form fields before sending
-    var recipients = formData.get('recipients');
-    if (!recipients || !validateEmails(recipients.trim())) {
-        showNotification('Invalid email format. Use comma-separated valid emails.', 'error');
-        sendButton.disabled = false;
-        return;
-    }
-    if (formData.get('subject').trim() === '') {
-      showNotification('Please enter a subject', 'error');
-      sendButton.disabled = false;
-      return;
-    }
-    if (quill.getText().trim() === '') {  // Checking if the editor has visible text
-      showNotification('Please enter an email body', 'error');
-      sendButton.disabled = false;
-      return;
-    }
-
-    // Send the form data via fetch
-    fetch('/composer', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errorData => {
-              showNotification(errorData.message, 'error');
-                throw new Error(errorData.message || "Unknown error");
-            });
+        for (let file of event.target.files) {
+          selectedFiles.push(file);
         }
-        showNotification('Email sent successfully!', 'success');
-        quill.setContents([]);    //clear the editor
-        selectedFiles = [];       //clear the selected files
-        updateAttachmentList();   //clear the attachment list
-        this.reset();     //reset the form
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    })
-    .finally(() => {
-      sendButton.disabled = false; // Re-enable submit button after request
-    });
-  });
+        updateAttachmentList();
+      });
 
-    // Email validation function
-    function validateEmails(emailString) {
-      var emailArray = emailString.split(',').map(email => email.trim());
-      var emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      return emailArray.every(email => emailRegex.test(email));
-    }
+      // Toggle schedule options
+      const toggleScheduleButton = document.getElementById('toggleScheduleButton');
+      const scheduleOptionsContainer = document.getElementById('scheduleOptionsContainer');
+      toggleScheduleButton.addEventListener('click', function() {
+        if (scheduleOptionsContainer.classList.contains('hidden')) {
+          scheduleOptionsContainer.classList.remove('hidden');
+        } else {
+          scheduleOptionsContainer.classList.add('hidden');
+        }
+      });
 
-  // Load Canned Emails from Database
-  function loadTemplates() {
-    fetch('/templates', { method: 'GET' })
-      .then(response => response.json())  // This line parses the response as JSON
-      .then(templates => {
-        if (templates.length === 0) {
+      const scheduleSelect = document.getElementById('schedule');
+      const customScheduleContainer = document.getElementById('customScheduleContainer');
+      scheduleSelect && scheduleSelect.addEventListener('change', function() {
+        if (this.value === 'custom') {
+          customScheduleContainer.classList.remove('hidden');
+        } else {
+          customScheduleContainer.classList.add('hidden');
+        }
+      });
+
+      document.getElementById('openTemplateModal').addEventListener('click', function () {
+        loadTemplates();
+        document.getElementById('templateModal').classList.remove('hidden');
+      });
+      document.getElementById('closeTemplateModal').addEventListener('click', function () {
+        document.getElementById('templateModal').classList.add('hidden');
+      });
+      document.getElementById('addTemplateButton').addEventListener('click', function () {
+        document.getElementById('addTemplateModal').classList.remove('hidden');
+      });
+      document.getElementById('closeAddTemplateModal').addEventListener('click', function () {
+        document.getElementById('addTemplateModal').classList.add('hidden');
+      });
+
+      document.getElementById('emailForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        var emailBody = quill.root.innerHTML;
+        var sendButton = event.target.querySelector('button[type="submit"]');
+        sendButton.disabled = true;
+        document.getElementById('body').value = emailBody;
+        var formData = new FormData(this);
+        console.log(selectedFiles);
+        console.log("file names are: ");
+        for (let file of selectedFiles) {
+          formData.append('attachments[]', file);
+        }
+        selectedFiles = [];
+        for (var pair of formData.entries()) {
+          console.log(pair[0] + ', ' + pair[1]);
+        }
+        var recipients = formData.get('recipients');
+        if (!recipients || !validateEmails(recipients.trim())) {
+          showNotification('Invalid email format. Use comma-separated valid emails.', 'error');
+          sendButton.disabled = false;
           return;
         }
-
-        const templateList = document.getElementById('templateList');
-        templateList.innerHTML = '';  // Clear the template list before adding new ones
-
-        templates.forEach(template => {
-          const li = document.createElement('li');
-          li.classList.add('p-2', 'border', 'rounded', 'cursor-pointer', 'hover:bg-gray-200');
-          li.textContent = template.Title;
-          li.onclick = function () {
-            quill.root.innerHTML = template.Content;  // Insert template content into email body
-            document.getElementById('templateModal').classList.add('hidden');  // Close modal
-          };
-          templateList.appendChild(li);
+        if (formData.get('subject').trim() === '') {
+          showNotification('Please enter a subject', 'error');
+          sendButton.disabled = false;
+          return;
+        }
+        if (quill.getText().trim() === '') {
+          showNotification('Please enter an email body', 'error');
+          sendButton.disabled = false;
+          return;
+        }
+        fetch('/composer', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => {
+          if (!response.ok) {
+            return response.json().then(errorData => {
+              showNotification(errorData.message, 'error');
+              throw new Error(errorData.message || "Unknown error");
+            });
+          }
+          showNotification('Email sent successfully!', 'success');
+          quill.setContents([]);
+          selectedFiles = [];
+          updateAttachmentList();
+          this.reset();
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        })
+        .finally(() => {
+          sendButton.disabled = false;
+          selectedFiles = [];
         });
-      })
-      .catch(error => {
-        console.error('Error loading templates:', error);
-        showNotification('Error loading templates.', 'error');
       });
-  }
 
-   // Save New Template to Database
-    document.getElementById('templateForm').addEventListener('submit', function (event) {
-      event.preventDefault();
-      
-      const templateName = document.getElementById('templateName').value.trim();
-      const templateContent = document.getElementById('templateContent').value.trim();
-
-      if (!templateName || !templateContent) {
-        showNotification('Please enter a template name and content.', 'error');
-        return;
+      function validateEmails(emailString) {
+        var emailArray = emailString.split(',').map(email => email.trim());
+        var emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        return emailArray.every(email => emailRegex.test(email));
       }
 
-      fetch('/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({Title: templateName, Content: templateContent})
-      })
+      function loadTemplates() {
+        fetch('/templates', { method: 'GET' })
+          .then(response => response.json())
+          .then(templates => {
+            if (templates.length === 0) return;
+            const templateList = document.getElementById('templateList');
+            templateList.innerHTML = '';
+            templates.forEach(template => {
+              const li = document.createElement('li');
+              li.classList.add('p-2', 'border', 'rounded', 'cursor-pointer', 'hover:bg-gray-200');
+              li.textContent = template.Title;
+              li.onclick = function () {
+                quill.root.innerHTML = template.Content;
+                document.getElementById('templateModal').classList.add('hidden');
+              };
+              templateList.appendChild(li);
+            });
+          })
+          .catch(error => {
+            console.error('Error loading templates:', error);
+            showNotification('Error loading templates.', 'error');
+          });
+      }
+
+      document.getElementById('templateForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const templateName = document.getElementById('templateName').value.trim();
+        const templateContent = document.getElementById('templateContent').value.trim();
+        if (!templateName || !templateContent) {
+          showNotification('Please enter a template name and content.', 'error');
+          return;
+        }
+        fetch('/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ Title: templateName, Content: templateContent })
+        })
         .then(response => response.json())
         .then(data => {
           if (data.success === "true") {
             showNotification('Template saved successfully!', 'success');
-            loadTemplates(); // Refresh template list
-            document.getElementById('addTemplateModal').classList.add('hidden'); // Close modal
+            loadTemplates();
+            document.getElementById('addTemplateModal').classList.add('hidden');
             document.getElementById('templateForm').reset();
           } else {
             showNotification('Error saving template.', 'error');
           }
         })
         .catch(error => console.error('Error saving template:', error));
-    });
-
-    function updateAttachmentList() {
-      let fileList = document.getElementById('fileList');
-      if (!fileList) {
-        fileList = document.createElement('ul');
-        fileList.id = 'fileList';
-        document.getElementById('attachments').insertAdjacentElement('afterend', fileList);
-      }
-      fileList.innerHTML = '';
-      selectedFiles.forEach((file, index) => {
-        let li = document.createElement('li');
-        li.textContent = file.name + ' ';
-        let removeBtn = document.createElement('button');
-        removeBtn.textContent = '❌';
-        removeBtn.classList.add('ml-2', 'text-red-500', 'hover:text-red-700');
-        removeBtn.onclick = function() {
-          selectedFiles.splice(index, 1);
-          updateAttachmentList();
-        };
-        li.appendChild(removeBtn);
-        fileList.appendChild(li);
       });
-    }
 
-      // Function to display notifications
+      function updateAttachmentList() {
+        let fileList = document.getElementById('fileList');
+        if (!fileList) {
+          fileList = document.createElement('ul');
+          fileList.id = 'fileList';
+          document.getElementById('attachments').insertAdjacentElement('afterend', fileList);
+        }
+        fileList.innerHTML = '';
+        for (let i = 0; i < selectedFiles.length; i++) {
+          let file = selectedFiles[i];
+          let li = document.createElement('li');
+          li.textContent = file.name + ' ';
+          let removeBtn = document.createElement('button');
+          removeBtn.textContent = '❌';
+          removeBtn.classList.add('ml-2', 'text-red-500', 'hover:text-red-700');
+          removeBtn.onclick = function() {
+            selectedFiles.splice(i, 1);
+            updateAttachmentList();
+            event.target.value = '';
+          };
+          li.appendChild(removeBtn);
+          fileList.appendChild(li);
+        }
+        alert(selectedFiles);
+      }
+
       function showNotification(message, type) {
         var notification = document.getElementById('notification');
         notification.innerHTML = `<strong>${message}</strong>`;
         notification.classList.remove('hidden');
-
         if (type === 'success') {
           notification.classList.add('bg-green-100', 'text-green-700');
         } else if (type === 'error') {
           notification.classList.add('bg-red-100', 'text-red-700');
         }
-
-        notification.classList.remove('hidden');
-
-        // Hide the notification after 5 seconds
         setTimeout(function() {
           notification.classList.add('hidden');
         }, 5000);

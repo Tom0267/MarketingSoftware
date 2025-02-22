@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 )
 
 // get db connection from the main function
@@ -85,7 +86,7 @@ func saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save the template to the database
+	// save the template to the database
 	err = saveTemplate(template.Title, template.Content)
 	if err != nil {
 		http.Error(w, "failed to save template: "+err.Error(), http.StatusInternalServerError)
@@ -159,29 +160,42 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	// if no chunk data is provided then handle attachments normally
 	if chunkIndex == "" || totalChunksStr == "" {
 		var attachments []string
-		attachmentFiles := r.MultipartForm.File["attachments"]
+		attachmentFiles := r.MultipartForm.File["attachments[]"]
+		// check for duplicate attachments
+		attachmentMap := make(map[string]bool)
 		for _, fileHeader := range attachmentFiles {
-			attPath := "temp_uploads/" + fileHeader.Filename
+			//remove duplicate attachments
+			if !attachmentMap[fileHeader.Filename] {
+				attachmentMap[fileHeader.Filename] = true
+			}
+		}
+
+		for fileName := range attachmentMap {
+			attPath := "temp_uploads/" + fileName
 			attachments = append(attachments, attPath)
 			os.MkdirAll("temp_uploads", os.ModePerm)
 			outFile, err := os.Create(attPath)
 			if err != nil {
-				http.Error(w, "error creating attachment file", http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"message": "error creating attachment file"})
 				return
 			}
 			defer outFile.Close()
 
-			file, err := fileHeader.Open()
-			if err != nil {
-				http.Error(w, "error opening attachment file", http.StatusInternalServerError)
-				return
-			}
-			defer file.Close()
+			for _, fileHeader := range r.MultipartForm.File["attachments[]"] {
+				if fileHeader.Filename == fileName {
+					file, err := fileHeader.Open()
+					if err != nil {
+						json.NewEncoder(w).Encode(map[string]string{"message": "error opening attachment file"})
+						return
+					}
+					defer file.Close()
 
-			_, err = io.Copy(outFile, file)
-			if err != nil {
-				http.Error(w, "error saving attachment file", http.StatusInternalServerError)
-				return
+					_, err = io.Copy(outFile, file)
+					if err != nil {
+						json.NewEncoder(w).Encode(map[string]string{"message": "error saving attachment file"})
+						return
+					}
+				}
 			}
 		}
 
@@ -220,9 +234,12 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error sending email", http.StatusInternalServerError)
 			return
 		}
-		//w.Write([]byte("email sent successfully"))
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "email sent successfully"})
+
+		clearTempFiles() // clear temp files after 30 seconds
 		return
 	}
 
@@ -285,6 +302,18 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "chunk uploaded successfully"})
+}
+
+func clearTempFiles() {
+	//create a thread to clean up the temp folder after 30 seconds
+	go func() {
+		// sleep for 30 seconds
+		<-time.After(30 * time.Second)
+		err := os.RemoveAll("temp_uploads")
+		if err != nil {
+			log.Println("error cleaning up temp folder:", err)
+		}
+	}()
 }
 
 func addMailingListHandler(w http.ResponseWriter, r *http.Request) {
