@@ -205,13 +205,13 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 
 		err := sendMail(recipients, subject, body, attachments, images)
 		if err != nil {
-			http.Error(w, "error sending email", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error sending email"})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message": "email sent successfully"})
+		json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "email sent successfully"})
 
 		clearTempFiles() // clear temp files after 30 seconds
 		return
@@ -220,7 +220,7 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	// process chunked upload
 	totalChunks, err := strconv.Atoi(totalChunksStr)
 	if err != nil {
-		http.Error(w, "error converting total_chunks to int", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error converting total_chunks to int"})
 		return
 	}
 
@@ -228,7 +228,7 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	if chunkIndex == "0" {
 		outFile, err := os.Create(outFileName)
 		if err != nil {
-			http.Error(w, "error creating file", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error creating file"})
 			return
 		}
 		outFile.Close()
@@ -237,21 +237,21 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	// read the current chunk and append to the file
 	fileChunk, _, err := r.FormFile("attachment_chunk")
 	if err != nil {
-		http.Error(w, "error reading chunk", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error reading chunk"})
 		return
 	}
 	defer fileChunk.Close()
 
 	outFile, err := os.OpenFile(outFileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		http.Error(w, "error opening file", http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error opening file"})
 		return
 	}
 	defer outFile.Close()
 
 	_, err = io.Copy(outFile, fileChunk)
 	if err != nil {
-		http.Error(w, "error saving chunk", http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error saving chunk"})
 		return
 	}
 
@@ -262,20 +262,20 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 
 		err = sendMail(recipients, subject, body, attachments, images)
 		if err != nil {
-			http.Error(w, "error sending email", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error sending email"})
 			return
 		}
 
 		err = os.Remove(outFileName)
 		if err != nil {
-			http.Error(w, "error deleting file", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error deleting files"})
 			return
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "chunk uploaded successfully"})
+	json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "chunk uploaded successfully"})
 }
 
 func clearTempFiles() {
@@ -297,23 +297,22 @@ func campaignHandler(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		handleGetCampaign(w, r)
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "method not allowed"})
 	}
 }
 
 func handleGetCampaign(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("GET /campaigns")
 	//get the name of the requested campaign
 	campaignName := r.URL.Query().Get("name")
 	if campaignName == "" {
-		http.Error(w, "missing campaign name", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "missing campaign name"})
 		return
 	}
 
 	//get the campaign from the database
 	campaign, err := getSubscribers(campaignName)
 	if err != nil {
-		http.Error(w, "error fetching campaign", http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error fetching campaign"})
 		return
 	}
 	json.NewEncoder(w).Encode(campaign)
@@ -322,22 +321,40 @@ func handleGetCampaign(w http.ResponseWriter, r *http.Request) {
 func handlePostCampaign(w http.ResponseWriter, r *http.Request) {
 	//parse the request body
 	var campaign struct {
-		Name       string   `json:"Name"`
-		Recipients []string `json:"Recipients"`
+		Name       string   `json:"campaignName"`
+		Recipients []string `json:"mailingList"`
 	}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&campaign)
 	if err != nil {
-		http.Error(w, "invalid input: "+err.Error(), http.StatusBadRequest)
+		fmt.Printf("error decoding campaign")
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "Campaign failed to saved"})
 		return
 	}
 
 	//save the campaign to the database
 	err = saveCampaign(campaign.Name, campaign.Recipients)
 	if err != nil {
-		http.Error(w, "failed to save campaign: "+err.Error(), http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "Campaign failed to saved"})
 		return
 	}
 
 	json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "Campaign saved successfully!"})
 }
+
+func listHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		handlePostList(w, r)
+	case "GET":
+		handleGetList(w, r)
+	default:
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "method not allowed"})
+	}
+}
+
+func handleGetList(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func handlePostList(w http.ResponseWriter, r *http.Request) {}

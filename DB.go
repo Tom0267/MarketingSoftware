@@ -128,9 +128,8 @@ func addSubscriber(listName, email string) error {
 	return nil
 }
 
-func getSubscribers(listName string) ([]string, error) {
-	//get all subscribers for a mailing list using the campaign_subscribers table
-	rows, err := database.Query(`SELECT u.email FROM users u JOIN campaign_subscribers cs ON u.id = cs.subscriber_id JOIN campaigns c ON cs.campaign_id = c.id WHERE c.name = ?`, listName)
+func getSubscribers(campaignName string) ([]string, error) {
+	rows, err := database.Query(`SELECT u.email FROM users u JOIN campaign_subscribers cs ON u.id = cs.subscriber_id JOIN campaigns c ON cs.campaign_id = c.id WHERE c.name = ?`, campaignName)
 	if err != nil {
 		return nil, fmt.Errorf("error querying subscribers: %v", err)
 	}
@@ -145,7 +144,6 @@ func getSubscribers(listName string) ([]string, error) {
 		emails = append(emails, email)
 	}
 	return emails, nil
-
 }
 
 func saveCampaign(name string, emails []string) error {
@@ -153,6 +151,9 @@ func saveCampaign(name string, emails []string) error {
 	if err != nil {
 		return fmt.Errorf("error creating campaign: %v", err)
 	}
+	//save the subscribers if there are any
+
+	fmt.Println("Campaign created")
 	return nil
 }
 
@@ -222,5 +223,13 @@ func removeSubscriber(listName, email string) error {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
 
+	return nil
+}
+
+func addUser(email string) error {
+	_, err := database.Exec(`INSERT INTO users (name) VALUES (?)`, email)
+	if err != nil {
+		return fmt.Errorf("error creating campaign: %v", err)
+	}
 	return nil
 }

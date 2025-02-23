@@ -24,8 +24,11 @@ func main() {
 	//serve the composer and templates route
 	http.HandleFunc("/composer", composerHandler)
 	http.HandleFunc("/templates", templatesHandler)
+	http.HandleFunc("/campaigns/list", listHandler)
 	http.HandleFunc("/campaigns", campaignHandler)
 
+	//create a test user
+	addUser("121year@gmail.com")
 	//start the web server
 	log.Fatal(http.ListenAndServe(":8080", nil))
 	fmt.Println("Server started on localhost:8080")
