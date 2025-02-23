@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -37,29 +36,35 @@ func initDB(dbPath string) (*sql.DB, error) {
 		name TEXT UNIQUE
 	);`
 
-	// create subscribers table
-	createSubscribersSQL := `CREATE TABLE IF NOT EXISTS subscribers (
+	// create users table
+	createUsersSQL := `CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		mailing_list_id INTEGER,
-		email TEXT,
-		FOREIGN KEY (mailing_list_id) REFERENCES mailing_lists(id)
+		email TEXT UNIQUE
 	);`
 
-	_, err = database.Exec(createTableSQL)
-	if err != nil {
-		return nil, fmt.Errorf("error creating table: %v", err)
+	// create campaigns table
+	createCampaignsSQL := `CREATE TABLE IF NOT EXISTS campaigns (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT UNIQUE
+	);`
+
+	// create campaign_subscribers table to link subscribers to campaigns
+	createCampaignSubscribersSQL := `CREATE TABLE IF NOT EXISTS campaign_subscribers (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		campaign_id INTEGER,
+		subscriber_id INTEGER,
+		joinDate DATE DEFAULT CURRENT_DATE,
+		FOREIGN KEY (campaign_id) REFERENCES campaigns(id),
+		FOREIGN KEY (subscriber_id) REFERENCES users(id)
+	);`
+
+	for _, sql := range []string{createTableSQL, createMailingListsSQL, createUsersSQL, createCampaignsSQL, createCampaignSubscribersSQL} {
+		_, err := db.Exec(sql)
+		if err != nil {
+			return nil, fmt.Errorf("error creating table: %v", err)
+		}
 	}
-	_, err = database.Exec(createMailingListsSQL)
-	if err != nil {
-		return nil, fmt.Errorf("error creating mailing_lists table: %v", err)
-	}
-	_, err = database.Exec(createSubscribersSQL)
-	if err != nil {
-		return nil, fmt.Errorf("error creating subscribers table: %v", err)
-	}
-	if database == nil {
-		log.Fatal("database connection is not initialized")
-	}
+
 	return database, nil
 }
 
@@ -98,47 +103,124 @@ func createMailingList(name string) error {
 }
 
 func addSubscriber(listName, email string) error {
-	var listID int
-	err := database.QueryRow(`SELECT id FROM mailing_lists WHERE name = ?`, listName).Scan(&listID)
-	if err != nil {
-		return fmt.Errorf("mailing list not found: %v", err)
-	}
-
-	_, err = database.Exec(`INSERT INTO subscribers (mailing_list_id, email) VALUES (?, ?)`, listID, email)
+	// check if the subscriber already exists
+	var id int
+	err := database.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id)
 	if err != nil {
 		return fmt.Errorf("error adding subscriber: %v", err)
 	}
+	//check campaign exists
+	err = database.QueryRow(`SELECT id FROM campaigns WHERE name = ?`, listName).Scan(&id)
+	if err != nil {
+		return fmt.Errorf("error adding subscriber: %v", err)
+	}
+	// check if the subscriber is already in the mailing list
+	err = database.QueryRow(`SELECT id FROM campaign_subscribers WHERE campaign_id = (SELECT id FROM campaigns WHERE name = ?) AND subscriber_id = (SELECT id FROM users WHERE email = ?)`, listName, email).Scan(&id)
+	if err == nil {
+		return fmt.Errorf("subscriber already exists in mailing list")
+	}
+	// add the subscriber to the mailing list
+	_, err = database.Exec(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id) SELECT c.id, u.id FROM campaigns c, users u WHERE c.name = ? AND u.email = ? ON CONFLICT (campaign_id, subscriber_id) DO NOTHING`, listName, email)
+	if err != nil {
+		return fmt.Errorf("error adding subscriber to mailing list: %v", err)
+	}
+
 	return nil
 }
 
 func getSubscribers(listName string) ([]string, error) {
-	var listID int
-	err := database.QueryRow(`SELECT id FROM mailing_lists WHERE name = ?`, listName).Scan(&listID)
+	//get all subscribers for a mailing list using the campaign_subscribers table
+	rows, err := database.Query(`SELECT u.email FROM users u JOIN campaign_subscribers cs ON u.id = cs.subscriber_id JOIN campaigns c ON cs.campaign_id = c.id WHERE c.name = ?`, listName)
 	if err != nil {
-		return nil, fmt.Errorf("mailing list not found: %v", err)
-	}
-
-	rows, err := database.Query(`SELECT email FROM subscribers WHERE mailing_list_id = ?`, listID)
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving subscribers: %v", err)
+		return nil, fmt.Errorf("error querying subscribers: %v", err)
 	}
 	defer rows.Close()
 
-	var subscribers []string
+	var emails []string
 	for rows.Next() {
 		var email string
 		if err := rows.Scan(&email); err != nil {
-			return nil, fmt.Errorf("error scanning subscriber: %v", err)
+			return nil, fmt.Errorf("error scanning row: %v", err)
 		}
-		subscribers = append(subscribers, email)
+		emails = append(emails, email)
 	}
-	return subscribers, nil
+	return emails, nil
+
 }
 
-func clearTemplates() error {
-	_, err := database.Exec(`DELETE FROM email_templates`)
+func saveCampaign(name string, emails []string) error {
+	_, err := database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
 	if err != nil {
-		return fmt.Errorf("error clearing database: %v", err)
+		return fmt.Errorf("error creating campaign: %v", err)
 	}
+	return nil
+}
+
+func updateTemplate(id int, title, content string) error {
+	updateSQL := `UPDATE email_templates SET title = ?, content = ? WHERE id = ?`
+	_, err := database.Exec(updateSQL, title, content, id)
+	if err != nil {
+		return fmt.Errorf("error updating template: %v", err)
+	}
+	return nil
+}
+
+func deleteTemplate(id int) error {
+	deleteSQL := `DELETE FROM email_templates WHERE id = ?`
+	_, err := database.Exec(deleteSQL, id)
+	if err != nil {
+		return fmt.Errorf("error deleting template: %v", err)
+	}
+	return nil
+}
+
+func deleteMailingList(name string) error {
+	tx, err := database.Begin()
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	// Delete subscribers associated with the mailing list
+	deleteSubscribersSQL := `DELETE FROM campaign_subscribers WHERE campaign_id = (SELECT id FROM campaigns WHERE name = ?)`
+	_, err = tx.Exec(deleteSubscribersSQL, name)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("error deleting subscribers: %v", err)
+	}
+
+	// Delete the mailing list
+	deleteMailingListSQL := `DELETE FROM mailing_lists WHERE name = ?`
+	_, err = tx.Exec(deleteMailingListSQL, name)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("error deleting mailing list: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+	return nil
+}
+
+func removeSubscriber(listName, email string) error {
+	tx, err := database.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %v", err)
+	}
+
+	deleteSQL := `DELETE FROM campaign_subscribers WHERE subscriber_id = (SELECT id FROM users WHERE email = ?) AND campaign_id = (SELECT id FROM campaigns WHERE name = ?)`
+
+	_, err = tx.Exec(deleteSQL, email, listName)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("error removing subscriber: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
 	return nil
 }

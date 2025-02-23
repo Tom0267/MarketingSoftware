@@ -148,30 +148,34 @@
 
   <script>
     document.getElementById('campaignForm').addEventListener('submit', function(event) {
-      event.preventDefault();
-      const campaignName = document.getElementById('campaignName').value.trim();
-      const mailingList = document.getElementById('mailingList').value.trim();
-      if (!campaignName || !mailingList) {
-        showNotification('Please enter a campaign name and mailing list.', 'error');
-        return;
-      }
-      fetch('/campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignName, mailingList })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showNotification('Campaign created successfully!', 'success');
+          event.preventDefault();
+          const campaignName = document.getElementById('campaignName').value.trim();
+          const mailingList = document.getElementById('mailingList').value.trim();
+          if (!campaignName) {
+            showNotification('Please enter a campaign name and mailing list.', 'error');
+            return;
+          }
+          fetch('/campaigns', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ campaignName, mailingList })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showNotification('Campaign created successfully!', 'success');
+              document.getElementById('CampaignModal').classList.add('hidden');
+              document.getElementById('campaignForm').reset();
+            } else {
+              showNotification('Error creating campaign.', 'error');
+            }
+          })
+          .catch(error => console.error('Error creating campaign:', error));
+        });
+    
+        document.getElementById('cancelCampaign').addEventListener('click', function() {
           document.getElementById('CampaignModal').classList.add('hidden');
-          document.getElementById('campaignForm').reset();
-        } else {
-          showNotification('Error creating campaign.', 'error');
-        }
-      })
-      .catch(error => console.error('Error creating campaign:', error));
-    });
+        });
   </script>
 
   <!-- Add Template Modal -->

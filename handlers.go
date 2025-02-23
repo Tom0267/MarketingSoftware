@@ -46,32 +46,6 @@ func templateGetter(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(templates)
 }
 
-// insertTemplateHandler allows inserting a template into the email body
-func insertTemplateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-		templateIDStr := r.URL.Query().Get("template_id")
-		templateID, err := strconv.Atoi(templateIDStr)
-		if err != nil {
-			http.Error(w, "invalid template ID", http.StatusBadRequest)
-			return
-		}
-
-		var template EmailTemplate
-		err = db.QueryRow(`SELECT id, title, content FROM email_templates WHERE id = ?`, templateID).Scan(&template.ID, &template.Title, &template.Content)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to fetch template: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		// return the template content as json
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(template); err != nil {
-			http.Error(w, fmt.Sprintf("error encoding template: %v", err), http.StatusInternalServerError)
-		}
-	}
-}
-
 // saveTemplateHandler allows saving a new email template
 func saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -316,78 +290,54 @@ func clearTempFiles() {
 	}()
 }
 
-func addMailingListHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+func campaignHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		handlePostCampaign(w, r)
+	case "GET":
+		handleGetCampaign(w, r)
+	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
-
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
-		return
-	}
-
-	if err := createMailingList(req.Name); err != nil {
-		http.Error(w, fmt.Sprintf("failed to add mailing list: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Mailing list added successfully"})
 }
 
-func subscribeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+func handleGetCampaign(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("GET /campaigns")
+	//get the name of the requested campaign
+	campaignName := r.URL.Query().Get("name")
+	if campaignName == "" {
+		http.Error(w, "missing campaign name", http.StatusBadRequest)
 		return
 	}
 
-	var req struct {
-		ListName string `json:"list_name"`
-		Email    string `json:"email"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+	//get the campaign from the database
+	campaign, err := getSubscribers(campaignName)
+	if err != nil {
+		http.Error(w, "error fetching campaign", http.StatusInternalServerError)
 		return
 	}
-
-	if err := addSubscriber(req.ListName, req.Email); err != nil {
-		http.Error(w, fmt.Sprintf("failed to add subscriber: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Subscribed successfully"})
+	json.NewEncoder(w).Encode(campaign)
 }
 
-func sendMailingListHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+func handlePostCampaign(w http.ResponseWriter, r *http.Request) {
+	//parse the request body
+	var campaign struct {
+		Name       string   `json:"Name"`
+		Recipients []string `json:"Recipients"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&campaign)
+	if err != nil {
+		http.Error(w, "invalid input: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var req struct {
-		ListName string `json:"list_name"`
-		Subject  string `json:"subject"`
-		Body     string `json:"body"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+	//save the campaign to the database
+	err = saveCampaign(campaign.Name, campaign.Recipients)
+	if err != nil {
+		http.Error(w, "failed to save campaign: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := sendMailingListEmail(req.ListName, req.Subject, req.Body); err != nil {
-		http.Error(w, fmt.Sprintf("failed to send email: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Mailing list email sent successfully"})
-
+	json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "Campaign saved successfully!"})
 }

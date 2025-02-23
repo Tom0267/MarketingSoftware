@@ -15,15 +15,16 @@ func main() {
 		log.Fatalf("failed to initialize database: %v", err)
 	}
 	defer db.Close()
-	//clear the templates table for testing
-	clearTemplates()
 
 	//save test template
 	saveTemplate("Welcome", "Welcome to our platform!")
+	createMailingList("test")
+	addSubscriber("test", "121year@gmail.com")
 
 	//serve the composer and templates route
 	http.HandleFunc("/composer", composerHandler)
 	http.HandleFunc("/templates", templatesHandler)
+	http.HandleFunc("/campaigns", campaignHandler)
 
 	//start the web server
 	log.Fatal(http.ListenAndServe(":8080", nil))
