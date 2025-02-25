@@ -30,12 +30,6 @@ func initDB(dbPath string) (*sql.DB, error) {
 		"content" TEXT
 	);`
 
-	// create mailing lists table
-	createMailingListsSQL := `CREATE TABLE IF NOT EXISTS mailing_lists (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT UNIQUE
-	);`
-
 	// create users table
 	createUsersSQL := `CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +52,7 @@ func initDB(dbPath string) (*sql.DB, error) {
 		FOREIGN KEY (subscriber_id) REFERENCES users(id)
 	);`
 
-	for _, sql := range []string{createTableSQL, createMailingListsSQL, createUsersSQL, createCampaignsSQL, createCampaignSubscribersSQL} {
+	for _, sql := range []string{createTableSQL, createUsersSQL, createCampaignsSQL, createCampaignSubscribersSQL} {
 		_, err := db.Exec(sql)
 		if err != nil {
 			return nil, fmt.Errorf("error creating table: %v", err)
@@ -95,11 +89,11 @@ func getTemplates() ([]EmailTemplate, error) {
 }
 
 func createMailingList(name string) error {
-	_, err := database.Exec(`INSERT INTO mailing_lists (name) VALUES (?)`, name)
+	_, err := database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
 	if err != nil {
-		return fmt.Errorf("error creating mailing list: %v", err)
+		return fmt.Errorf("Error creating campaign: %v", err)
 	}
-	fmt.Println("Mailing list created")
+	fmt.Println("Campaign created")
 	return nil
 }
 
@@ -153,8 +147,14 @@ func saveCampaign(name string, emails []string) error {
 		return fmt.Errorf("error creating campaign: %v", err)
 	}
 	//save the subscribers if there are any
-
-	fmt.Println("Campaign created")
+	if len(emails) > 0 {
+		for _, email := range emails {
+			_, err = database.Exec(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id) SELECT c.id, u.id FROM campaigns c, users u WHERE c.name = ? AND u.email = ?`, name, email)
+			if err != nil {
+				return fmt.Errorf("error saving subscribers: %v", err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -191,7 +191,7 @@ func deleteMailingList(name string) error {
 	}
 
 	// Delete the mailing list
-	deleteMailingListSQL := `DELETE FROM mailing_lists WHERE name = ?`
+	deleteMailingListSQL := `DELETE FROM campaigns WHERE name = ?`
 	_, err = tx.Exec(deleteMailingListSQL, name)
 	if err != nil {
 		tx.Rollback()
@@ -251,4 +251,15 @@ func getAllCampaigns() ([]string, error) {
 		campaigns = append(campaigns, name)
 	}
 	return campaigns, nil
+}
+
+func clearCampaigns() {
+	_, err := database.Exec(`DELETE FROM campaigns`)
+	if err != nil {
+		fmt.Errorf("error querying campaigns: %v", err)
+	}
+	_, err = database.Exec(`DELETE FROM campaign_subscribers`)
+	if err != nil {
+		fmt.Errorf("error querying campaign_subscribers: %v", err)
+	}
 }

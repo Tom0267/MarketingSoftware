@@ -22,9 +22,13 @@ func main() {
 	}
 	defer db.Close()
 
+	//clearCampaigns() //clear campaigns for testing
+
 	//save test template
 	saveTemplate("Welcome", "Welcome to our platform!")
 	createMailingList("test")
+	//create a test user
+	addUser("121year@gmail.com")
 	addSubscriber("test", "121year@gmail.com")
 
 	//serve the routes
@@ -35,8 +39,6 @@ func main() {
 	http.HandleFunc("/campaigns/list", listHandler)
 	http.HandleFunc("/campaigns", campaignHandler)
 
-	//create a test user
-	addUser("121year@gmail.com")
 	//start the web server
 	log.Fatal(http.ListenAndServe(":8080", nil))
 	fmt.Println("Server started on localhost:8080")

@@ -65,11 +65,14 @@ document.addEventListener('DOMContentLoaded', function () {
     //function to fetch campaigns
     async function fetchCampaigns() {
         try {
-            const response = await fetch("/api/getCampaigns"); // Update with your actual API
+            const response = await fetch("/campaigns/list"); // Update with your actual API if needed
             if (!response.ok) throw new Error("Failed to fetch campaigns");
-
-            const campaigns = await response.json();
-            populateCampaignDropdown(campaigns);
+    
+            const data = await response.json(); // data is an object with a 'campaigns' property
+            if (!Array.isArray(data.campaigns)) {
+                throw new Error("Invalid campaigns data format");
+            }
+            populateCampaignDropdown(data.campaigns);
         } catch (error) {
             console.error("Error fetching campaigns:", error);
         }
@@ -77,20 +80,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     //populate campaign dropdown
     function populateCampaignDropdown(campaigns) {
-        campaignDropdownMenu.innerHTML = ""; //clear previous entries
-
+        campaignDropdownMenu.innerHTML = ""; // clear previous entries
+        console.log(campaigns);
+    
         campaigns.forEach((campaign) => {
+            // Check that campaign.name exists
+            console.log("Populating campaign:", campaign);
             const option = document.createElement("div");
             option.className = "px-4 py-2 text-gray-700 hover:bg-gray-200 cursor-pointer";
-            option.textContent = campaign.name;
-            option.dataset.id = campaign.id;
-
+            option.textContent = campaign || "Unnamed Campaign"; // Fallback text if missing
+    
             option.addEventListener("click", function () {
-                selectedCampaign.textContent = campaign.name;
-                campaignInput.value = campaign.id;
+                selectedCampaign.textContent = campaign;
                 campaignDropdownMenu.classList.add("hidden");
             });
-
             campaignDropdownMenu.appendChild(option);
         });
     }
@@ -98,6 +101,9 @@ document.addEventListener('DOMContentLoaded', function () {
     //toggle dropdown
     campaignDropdownButton.addEventListener("click", () => {
         campaignDropdownMenu.classList.toggle("hidden");
+        if (!campaignDropdownMenu.classList.contains("hidden")) {
+            fetchCampaigns();
+        }
     });
 
     //close dropdown when clicking outside
