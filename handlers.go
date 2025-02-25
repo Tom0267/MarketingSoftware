@@ -53,8 +53,8 @@ func saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		Title   string `json:"Title"`
 		Content string `json:"Content"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&template)
+
+	err := json.NewDecoder(r.Body).Decode(&template)
 	if err != nil {
 		http.Error(w, "Invalid input: "+err.Error(), http.StatusBadRequest)
 		return
@@ -324,10 +324,9 @@ func handlePostCampaign(w http.ResponseWriter, r *http.Request) {
 		Name       string   `json:"campaignName"`
 		Recipients []string `json:"mailingList"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&campaign)
+	err := json.NewDecoder(r.Body).Decode(&campaign)
 	if err != nil {
-		fmt.Printf("error decoding campaign")
+		fmt.Printf("error decoding campaign\n")
 		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "Campaign failed to saved"})
 		return
 	}

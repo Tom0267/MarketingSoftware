@@ -23,6 +23,7 @@ func main() {
 	defer db.Close()
 
 	//clearCampaigns() //clear campaigns for testing
+	//clearDatabase() //clear database for testing
 
 	//save test template
 	saveTemplate("Welcome", "Welcome to our platform!")

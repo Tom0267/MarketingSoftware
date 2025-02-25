@@ -1,4 +1,3 @@
-alert("Hello, World!");
 document.addEventListener('DOMContentLoaded', function () {
     //initialize Quill editor
     var quill = new Quill('#editor', { theme: 'snow' });
@@ -81,17 +80,14 @@ document.addEventListener('DOMContentLoaded', function () {
     //populate campaign dropdown
     function populateCampaignDropdown(campaigns) {
         campaignDropdownMenu.innerHTML = ""; // clear previous entries
-        console.log(campaigns);
     
         campaigns.forEach((campaign) => {
-            // Check that campaign.name exists
-            console.log("Populating campaign:", campaign);
             const option = document.createElement("div");
             option.className = "px-4 py-2 text-gray-700 hover:bg-gray-200 cursor-pointer";
-            option.textContent = campaign || "Unnamed Campaign"; // Fallback text if missing
+            option.textContent = campaign; // assuming campaign is a string name
     
             option.addEventListener("click", function () {
-                selectedCampaign.textContent = campaign;
+                document.getElementById("campaignNameDisplay").value = campaign; // update the read-only input
                 campaignDropdownMenu.classList.add("hidden");
             });
             campaignDropdownMenu.appendChild(option);
@@ -255,6 +251,39 @@ document.addEventListener('DOMContentLoaded', function () {
             fileList.appendChild(li);
         }
     }
+
+    document.getElementById('campaignForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        const campaignName = document.getElementById('campaignName').value.trim();
+        // Convert mailingList from comma-separated string into an array:
+        const mailingListValue = document.getElementById('mailingList').value.trim();
+        const mailingListArray = mailingListValue
+          .split(',')
+          .map(email => email.trim())
+          .filter(email => email !== "");
+        
+        if (!campaignName || mailingListArray.length === 0) {
+          showNotification('Please enter a campaign name and valid mailing list.', 'error');
+          return;
+        }
+        
+        fetch('/campaigns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignName, mailingList: mailingListArray })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showNotification('Campaign created successfully!', 'success');
+            document.getElementById('CampaignModal').classList.add('hidden');
+            document.getElementById('campaignForm').reset();
+          } else {
+            showNotification('Error creating campaign.', 'error');
+          }
+        })
+        .catch(error => console.error('Error creating campaign:', error));
+    });
 
     //show notification
     function showNotification(message, type) {

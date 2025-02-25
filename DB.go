@@ -64,6 +64,11 @@ func initDB(dbPath string) (*sql.DB, error) {
 
 // saveTemplate inserts a new email template into the database
 func saveTemplate(title, content string) error {
+	exists := database.QueryRow(`SELECT id FROM email_templates WHERE title = ?`, title)
+	if exists != nil {
+		return fmt.Errorf("template title already exists")
+	}
+
 	insertSQL := `INSERT INTO email_templates(title, content) VALUES (?, ?)`
 	_, err := database.Exec(insertSQL, title, content)
 	return err
@@ -89,6 +94,11 @@ func getTemplates() ([]EmailTemplate, error) {
 }
 
 func createMailingList(name string) error {
+	exists := database.QueryRow(`SELECT id FROM campaigns WHERE name = ?`, name)
+	if exists != nil {
+		return fmt.Errorf("mailing list name already exists")
+	}
+
 	_, err := database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
 	if err != nil {
 		return fmt.Errorf("Error creating campaign: %v", err)
@@ -142,6 +152,11 @@ func getSubscribers(campaignName string) ([]string, error) {
 }
 
 func saveCampaign(name string, emails []string) error {
+	//check if the campaign already exists
+	_, exists := database.Query(`SELECT id FROM campaigns WHERE name = ?`, name)
+	if exists != nil {
+		return fmt.Errorf("campaign name already exists")
+	}
 	_, err := database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
 	if err != nil {
 		return fmt.Errorf("error creating campaign: %v", err)
@@ -182,7 +197,7 @@ func deleteMailingList(name string) error {
 		return fmt.Errorf("error beginning transaction: %v", err)
 	}
 
-	// Delete subscribers associated with the mailing list
+	//delete subscribers associated with the mailing list
 	deleteSubscribersSQL := `DELETE FROM campaign_subscribers WHERE campaign_id = (SELECT id FROM campaigns WHERE name = ?)`
 	_, err = tx.Exec(deleteSubscribersSQL, name)
 	if err != nil {
@@ -190,7 +205,7 @@ func deleteMailingList(name string) error {
 		return fmt.Errorf("error deleting subscribers: %v", err)
 	}
 
-	// Delete the mailing list
+	//delete the mailing list
 	deleteMailingListSQL := `DELETE FROM campaigns WHERE name = ?`
 	_, err = tx.Exec(deleteMailingListSQL, name)
 	if err != nil {
@@ -261,5 +276,15 @@ func clearCampaigns() {
 	_, err = database.Exec(`DELETE FROM campaign_subscribers`)
 	if err != nil {
 		fmt.Errorf("error querying campaign_subscribers: %v", err)
+	}
+}
+
+func clearDatabase() {
+	tables := []string{"email_templates", "users", "campaigns", "campaign_subscribers"}
+	for _, table := range tables {
+		_, err := database.Exec(fmt.Sprintf("DELETE FROM %s", table))
+		if err != nil {
+			fmt.Printf("error clearing table %s: %v\n", table, err)
+		}
 	}
 }
