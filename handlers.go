@@ -349,13 +349,13 @@ func listHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error fetching campaigns"})
 		return
 	}
-	// Return campaigns in a consistent structure
+	// return campaigns in a consistent structure
 	json.NewEncoder(w).Encode(map[string]interface{}{"campaigns": campaigns})
 }
 
 func scriptHandler(w http.ResponseWriter, r *http.Request) {
-	// Set the correct MIME type for JavaScript files
+	// set the correct MIME type for JavaScript files
 	w.Header().Set("Content-Type", "application/javascript")
-	// Serve the script.js file
+	// serve the script.js file
 	http.ServeFile(w, r, "JavaScript/script.js")
 }

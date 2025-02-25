@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('campaignForm').addEventListener('submit', function(event) {
         event.preventDefault();
         const campaignName = document.getElementById('campaignName').value.trim();
-        // Convert mailingList from comma-separated string into an array:
+        // convert mailingList from comma-separated string into an array:
         const mailingListValue = document.getElementById('mailingList').value.trim();
         const mailingListArray = mailingListValue
           .split(',')

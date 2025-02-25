@@ -11,101 +11,143 @@
   <!-- Quill Editor JS -->
   <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 </head>
-<body class="bg-gray-200 flex items-center justify-center min-h-screen p-4">
-  <!-- Outer container -->
-  <div class="bg-white shadow-xl rounded-lg w-full h-[95vh] flex flex-col mx-auto">
+<body class="bg-gray-100">
+  <!-- Outer Container using a responsive design -->
+  <div class="max-w-5xl mx-auto my-10 p-6 bg-white shadow-lg rounded-lg">
     <!-- Header -->
-    <div class="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
-      <h1 class="text-xl font-semibold">New Message</h1>
-    </div>
-    <!-- Compose Form Container -->
-    <form id="emailForm" class="p-6 flex flex-col flex-1 overflow-auto" enctype="multipart/form-data" method="POST" action="/composer">
-      <!-- Recipient and Campaign Row -->
-      <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-blue-600">Compose New Message</h1>
+    </header>
+    
+    <!-- Compose Form -->
+    <form id="emailForm" class="space-y-6" enctype="multipart/form-data" method="POST" action="/composer">
+      
+      <!-- Recipient & Selected Campaign Row -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Recipients Input -->
-        <div class="flex-1">
-          <label for="recipients" class="block font-medium text-gray-700 mb-1">To:</label>
-          <input type="text" id="recipients" name="recipients" placeholder="user@example.com" class="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
-          
-          <label for="campaignNameDisplay" class="block font-medium text-gray-700 mt-4 mb-1">Selected Campaign:</label>
-          <input type="text" id="campaignNameDisplay" name="campaignNameDisplay" class="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" value="No campaign selected" readonly>
+        <div>
+          <label for="recipients" class="block font-semibold text-gray-700 mb-2">To:</label>
+          <input type="text" id="recipients" name="recipients" placeholder="user@example.com" 
+                 class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" 
+                 autocomplete="email" />
         </div>
-        <!-- Campaign Dropdown Button -->
-        <div class="relative inline-block text-left">
-          <button id="campaignDropdownButton" type="button" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400">
-            <span id="selectedCampaign">Select Campaign</span>
-            <svg class="ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
-            </svg>
-          </button>
-          <div id="campaignDropdownMenu" class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 hidden">
-            <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="campaignDropdownButton"></div>
+        <!-- Selected Campaign Display (readonly) -->
+        <div>
+          <label for="campaignNameDisplay" class="block font-semibold text-gray-700 mb-2">Selected Campaign:</label>
+          <input type="text" id="campaignNameDisplay" name="campaignNameDisplay" 
+                 class="w-full border border-gray-300 rounded-md px-4 py-2 bg-gray-50 text-gray-800" 
+                 value="No campaign selected" readonly />
+        </div>
+      </div>
+      
+      <!-- Campaign Dropdown (smaller, multi-select) -->
+      <div class="relative inline-block w-48">
+        <button id="campaignDropdownButton" type="button" 
+                class="w-full flex justify-between items-center border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <span id="selectedCampaign">Select Campaign(s)</span>
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div id="campaignDropdownMenu" class="absolute z-10 mt-1 w-full bg-white shadow-md rounded-md hidden max-h-60 overflow-y-auto">
+          <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="campaignDropdownButton">
+            <!-- Campaign options -->
+            <label class="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer">
+              <input type="checkbox" id="campaign1" name="campaign_option[]" value="Campaign 1" class="mr-2 campaign-option">
+              Campaign 1
+            </label>
+            <label class="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer">
+              <input type="checkbox" id="campaign2" name="campaign_option[]" value="Campaign 2" class="mr-2 campaign-option">
+              Campaign 2
+            </label>
+            <label class="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer">
+              <input type="checkbox" id="campaign3" name="campaign_option[]" value="Campaign 3" class="mr-2 campaign-option">
+              Campaign 3
+            </label>
           </div>
-          <!-- Hidden input to hold the selected campaign id -->
-          <input type="hidden" id="campaign" name="campaign" value="" />
         </div>
+        <!-- Hidden input to hold the selected campaign ids (as a comma-separated string) -->
+        <input type="hidden" id="campaign" name="campaign" value="" />
       </div>
+      
       <!-- Subject Input -->
-      <div class="mt-4 flex flex-col sm:flex-row sm:items-center">
-        <label for="subject" class="w-full sm:w-20 font-medium text-gray-700 mb-1 sm:mb-0">Subject:</label>
-        <input type="text" id="subject" name="subject" placeholder="Email Subject" class="flex-1 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <div>
+        <label for="subject" class="block font-semibold text-gray-700 mb-2">Subject:</label>
+        <input type="text" id="subject" name="subject" placeholder="Email Subject" 
+               class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
       </div>
-      <!-- Message Body -->
-      <div class="mt-6 flex-1">
-        <div class="border rounded-md h-full">
-          <div id="editor" class="p-4 h-full"></div>
-        </div>
+
+      <!-- Message Body (Quill Editor) -->
+      <div>
+        <label for="editor" id="messageLabel" class="block font-semibold text-gray-700 mb-2">Message:</label>
+        <div id="editor" class="p-4 h-64 border border-gray-300 rounded-md" role="textbox" contenteditable="true" aria-labelledby="messageLabel"></div>
+        <!-- Hidden input to hold the Quill editor content -->
         <input type="hidden" id="body" name="body" />
       </div>
+      
       <!-- Attachment List -->
       <div id="fileList" class="mt-2"></div>
+      
       <!-- Bottom Toolbar -->
-      <div class="mt-6 flex flex-col sm:flex-row items-center justify-between border-t pt-4">
+      <div class="flex flex-col sm:flex-row items-center justify-between border-t pt-4">
         <!-- Left Toolbar Buttons -->
         <div class="flex space-x-4 mb-4 sm:mb-0">
           <!-- Attachment Button -->
           <div>
-            <label for="attachments" class="cursor-pointer flex items-center space-x-1 text-gray-600 hover:text-blue-600">
+            <label for="attachments" class="cursor-pointer flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828a4 4 0 10-5.656-5.656L7.757 9.757a6 6 0 108.486 8.486" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828a4 4 0 10-5.656-5.656L7.757 9.757a6 6 0 108.486 8.486" />
               </svg>
               <span>Attach</span>
             </label>
             <input type="file" id="attachments" name="attachments[]" multiple class="hidden" />
           </div>
-          <!-- Schedule Button -->
-          <button type="button" id="toggleScheduleButton" class="flex items-center space-x-1 text-gray-600 hover:text-blue-600 focus:outline-none">
+          <!-- Schedule Toggle Button -->
+          <button type="button" id="toggleScheduleButton" 
+                  class="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-10 4h10m2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h3.586a1 1 0 01.707.293l1.414 1.414A1 1 0 0011.414 7H12a1 1 0 001-1V3m0 0h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M8 7V3m8 4V3m-9 8h10m-10 4h10m2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h3.586a1 1 0 01.707.293l1.414 1.414A1 1 0 0011.414 7H12a1 1 0 001-1V3m0 0h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
             </svg>
             <span>Schedule</span>
           </button>
-          <!-- Canned Emails Button -->
-          <button type="button" id="openTemplateModal" class="flex items-center space-x-1 text-gray-600 hover:text-blue-600 focus:outline-none">
+          <!-- Canned Templates Button -->
+          <button type="button" id="openTemplateModal" 
+                  class="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m-6-8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M9 12h6m-6 4h6m-6-8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
             <span>Canned</span>
           </button>
         </div>
         <!-- Send Button -->
         <div>
-          <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">Send</button>
+          <button type="submit" 
+                  class="px-6 py-3 bg-green-600 text-white font-bold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+            Send
+          </button>
         </div>
       </div>
+      
       <!-- Create Campaign Button -->
-      <button type="button" id="openCampaignModal" class="flex items-center space-x-1 text-gray-600 hover:text-blue-600 focus:outline-none">
+      <button type="button" id="openCampaignModal" 
+              class="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m-6-8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M9 12h6m-6 4h6m-6-8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
         </svg>
         <span>Create Campaign</span>
       </button>
-      <!-- Scheduling Options -->
+      
+      <!-- Scheduling Options (initially hidden) -->
       <div id="scheduleOptionsContainer" class="mt-4 hidden border-t pt-4">
         <div class="space-y-4">
           <div>
-            <label for="schedule" class="block text-sm font-medium text-gray-700">Schedule Email</label>
-            <select id="schedule" name="schedule" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <label for="schedule" class="block font-semibold text-gray-700 mb-2">Schedule Email:</label>
+            <select id="schedule" name="schedule" 
+                    class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
               <option value="now">Send Now</option>
               <option value="15">In 15 Minutes</option>
               <option value="30">In 30 Minutes</option>
@@ -115,72 +157,203 @@
             </select>
           </div>
           <div id="customScheduleContainer" class="hidden">
-            <label for="customSchedule" class="block text-sm font-medium text-gray-700">Select Date & Time</label>
-            <input type="datetime-local" id="customSchedule" name="customSchedule" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <label for="customSchedule" class="block font-semibold text-gray-700 mb-2">Select Date &amp; Time:</label>
+            <input type="datetime-local" id="customSchedule" name="customSchedule" 
+                   class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
           </div>
         </div>
       </div>
-      <!-- Hidden Notification -->
+      
+      <!-- Hidden Notification Area -->
       <div id="notification" class="hidden mt-4 p-4 rounded-md"></div>
     </form>
   </div>
-  <!-- Canned Email Templates Modal -->
+  
+  <!-- Template Modal -->
   <div id="templateModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-semibold">Canned Email Templates</h3>
-        <button id="closeTemplateModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+        <h3 class="text-2xl font-semibold">Canned Email Templates</h3>
+        <button id="closeTemplateModal" class="text-gray-500 hover:text-gray-700 text-3xl leading-none">&times;</button>
       </div>
       <ul id="templateList" class="space-y-2 mb-4"></ul>
-      <button id="addTemplateButton" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Add New Template</button>
+      <button id="addTemplateButton" 
+              class="w-full mt-4 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        Add New Template
+      </button>
     </div>
   </div>
+  
   <!-- Campaign Modal -->
   <div id="CampaignModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-semibold">Create a Marketing Campaign</h3>
-        <button id="closeCampaignModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+        <h3 class="text-2xl font-semibold">Create a Marketing Campaign</h3>
+        <button id="closeCampaignModal" class="text-gray-500 hover:text-gray-700 text-3xl leading-none">&times;</button>
       </div>
       <form id="campaignForm" class="space-y-4" action="/campaigns" method="POST">
         <div>
-          <label for="campaignName" class="block text-sm font-medium text-gray-700">Campaign Name</label>
-          <input type="text" id="campaignName" name="campaignName" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <label for="campaignName" class="block font-semibold text-gray-700 mb-2">Campaign Name</label>
+          <input type="text" id="campaignName" name="campaignName" 
+                 class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" 
+                 placeholder="e.g., Summer Sale Campaign">
         </div>
         <div>
-          <label for="mailingList" class="block text-sm font-medium text-gray-700">Mailing List</label>
-          <textarea id="mailingList" name="mailingList" rows="4" placeholder="Enter email addresses separated by commas" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+          <label for="mailingList" class="block font-semibold text-gray-700 mb-2">Mailing List</label>
+          <textarea id="mailingList" name="mailingList" rows="4" 
+                    placeholder="Enter email addresses separated by commas" 
+                    class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
         </div>
         <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelCampaign" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">Cancel</button>
-          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Create Campaign</button>
+          <button type="button" id="cancelCampaign" 
+                  class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">
+            Cancel
+          </button>
+          <button type="submit" 
+                  class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            Create Campaign
+          </button>
         </div>
       </form>
     </div>
   </div>
+  
   <!-- Add Template Modal -->
   <div id="addTemplateModal" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden">
     <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-semibold">Add New Template</h3>
-        <button id="closeAddTemplateModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+        <h3 class="text-2xl font-semibold">Add New Template</h3>
+        <button id="closeAddTemplateModal" class="text-gray-500 hover:text-gray-700 text-3xl leading-none">&times;</button>
       </div>
       <form id="templateForm" class="space-y-4">
         <div>
-          <label for="templateName" class="block text-sm font-medium text-gray-700">Template Name</label>
-          <input type="text" id="templateName" name="templateName" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <label for="templateName" class="block font-semibold text-gray-700 mb-2">Template Name</label>
+          <input type="text" id="templateName" name="templateName" 
+                 class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
         </div>
         <div>
-          <label for="templateContent" class="block text-sm font-medium text-gray-700">Template Content</label>
-          <textarea id="templateContent" name="templateContent" rows="4" class="mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+          <label for="templateContent" class="block font-semibold text-gray-700 mb-2">Template Content</label>
+          <textarea id="templateContent" name="templateContent" rows="4" 
+                    class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
         </div>
         <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelAddTemplate" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">Cancel</button>
-          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Save Template</button>
+          <button type="button" id="cancelAddTemplate" 
+                  class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">
+            Cancel
+          </button>
+          <button type="submit" 
+                  class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            Save Template
+          </button>
         </div>
       </form>
     </div>
   </div>
-  <script src="JavaScript/script.js"></script>
+  
+  <!-- Inline Script for Responsiveness, Action Feedback, and Quill Editor Initialization -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      // Function to show toast notifications
+      function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        let bgColor = 'bg-blue-500';
+        if(type === 'success') bgColor = 'bg-green-500';
+        else if(type === 'error') bgColor = 'bg-red-500';
+        else if(type === 'warning') bgColor = 'bg-yellow-500';
+        toast.className = `fixed top-5 right-5 ${bgColor} text-white px-4 py-2 rounded shadow transition-opacity duration-500 opacity-0`;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.classList.remove('opacity-0');
+          toast.classList.add('opacity-100');
+        }, 10);
+        setTimeout(() => {
+          toast.classList.remove('opacity-100');
+          toast.classList.add('opacity-0');
+          setTimeout(() => { toast.remove(); }, 500);
+        }, 3000);
+      }
+      
+      // Initialize Quill Editor for the message box
+      var quill = new Quill('#editor', { theme: 'snow' });
+      
+      // Associate the generated select element in the toolbar with an id and name
+      const qlHeader = document.querySelector('.ql-header');
+      if (qlHeader) {
+        qlHeader.setAttribute('id', 'ql-header');
+        qlHeader.setAttribute('name', 'ql-header');
+      }
+      
+      // On form submission, transfer Quill content to the hidden input
+      document.getElementById("emailForm").addEventListener('submit', function(e){
+        document.getElementById("body").value = quill.root.innerHTML;
+      });
+      
+      // Toggle campaign dropdown
+      const campaignDropdownButton = document.getElementById('campaignDropdownButton');
+      const campaignDropdownMenu = document.getElementById('campaignDropdownMenu');
+      campaignDropdownButton.addEventListener('click', function(e){
+        e.stopPropagation();
+        campaignDropdownMenu.classList.toggle('hidden');
+      });
+      // Close dropdown if clicked outside
+      document.addEventListener('click', function(){
+        if(!campaignDropdownMenu.classList.contains('hidden')){
+          campaignDropdownMenu.classList.add('hidden');
+        }
+      });
+      
+      // Handle multiple campaign selection
+      const campaignOptions = document.querySelectorAll('.campaign-option');
+      const campaignDisplay = document.getElementById('campaignNameDisplay');
+      const campaignHiddenInput = document.getElementById('campaign');
+      
+      campaignOptions.forEach(function(checkbox){
+        checkbox.addEventListener('change', function(){
+          const selected = Array.from(campaignOptions)
+                              .filter(cb => cb.checked)
+                              .map(cb => cb.value);
+          campaignHiddenInput.value = selected.join(',');
+          campaignDisplay.value = selected.length ? selected.join(', ') : 'No campaign selected';
+          showToast(`Campaign ${checkbox.checked ? 'added' : 'removed'}: ${checkbox.value}`, 'success');
+        });
+      });
+      
+      // Toggle schedule options
+      const toggleScheduleButton = document.getElementById('toggleScheduleButton');
+      const scheduleOptionsContainer = document.getElementById('scheduleOptionsContainer');
+      toggleScheduleButton.addEventListener('click', function(){
+        if(scheduleOptionsContainer.classList.contains('hidden')){
+          scheduleOptionsContainer.classList.remove('hidden');
+          showToast('Schedule options revealed', 'info');
+        } else {
+          scheduleOptionsContainer.classList.add('hidden');
+          showToast('Schedule options hidden', 'info');
+        }
+      });
+      
+      // Update file list when attachments are selected
+      const attachmentsInput = document.getElementById('attachments');
+      const fileList = document.getElementById('fileList');
+      attachmentsInput.addEventListener('change', function(){
+        fileList.innerHTML = '';
+        const files = attachmentsInput.files;
+        if(files.length > 0){
+          const list = document.createElement('ul');
+          list.className = 'list-disc ml-6';
+          Array.from(files).forEach(file => {
+            const li = document.createElement('li');
+            li.textContent = file.name;
+            list.appendChild(li);
+          });
+          fileList.appendChild(list);
+          showToast(`${files.length} file(s) selected`, 'success');
+        }
+      });
+      
+      // Additional event listeners for modals and other interactions can be added here
+      
+    });
+  </script>
 </body>
 </html>
