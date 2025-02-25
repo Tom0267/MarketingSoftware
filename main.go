@@ -3,12 +3,18 @@ package main
 import (
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
+	err := mime.AddExtensionType(".js", "application/javascript")
+	if err != nil {
+		log.Fatalf("Error adding MIME type: %v", err)
+	}
+
 	//initialize the DB
 	db, err := initDB("templates.db")
 	if err != nil {
@@ -21,7 +27,9 @@ func main() {
 	createMailingList("test")
 	addSubscriber("test", "121year@gmail.com")
 
-	//serve the composer and templates route
+	//serve the routes
+	http.Handle("/JavaScript/", http.StripPrefix("/JavaScript/", http.FileServer(http.Dir("./JavaScript"))))
+	http.HandleFunc("/JavaScript/script.js", scriptHandler)
 	http.HandleFunc("/composer", composerHandler)
 	http.HandleFunc("/templates", templatesHandler)
 	http.HandleFunc("/campaigns/list", listHandler)

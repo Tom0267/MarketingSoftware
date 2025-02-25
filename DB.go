@@ -99,6 +99,7 @@ func createMailingList(name string) error {
 	if err != nil {
 		return fmt.Errorf("error creating mailing list: %v", err)
 	}
+	fmt.Println("Mailing list created")
 	return nil
 }
 
@@ -120,7 +121,7 @@ func addSubscriber(listName, email string) error {
 		return fmt.Errorf("subscriber already exists in mailing list")
 	}
 	// add the subscriber to the mailing list
-	_, err = database.Exec(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id) SELECT c.id, u.id FROM campaigns c, users u WHERE c.name = ? AND u.email = ? ON CONFLICT (campaign_id, subscriber_id) DO NOTHING`, listName, email)
+	_, err = database.Exec(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id) SELECT c.id, u.id FROM campaigns c, users u WHERE c.name = ? AND u.email = ?`, listName, email)
 	if err != nil {
 		return fmt.Errorf("error adding subscriber to mailing list: %v", err)
 	}
@@ -232,4 +233,22 @@ func addUser(email string) error {
 		return fmt.Errorf("error creating campaign: %v", err)
 	}
 	return nil
+}
+
+func getAllCampaigns() ([]string, error) {
+	rows, err := database.Query(`SELECT name FROM campaigns`)
+	if err != nil {
+		return nil, fmt.Errorf("error querying campaigns: %v", err)
+	}
+	defer rows.Close()
+
+	var campaigns []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("error scanning row: %v", err)
+		}
+		campaigns = append(campaigns, name)
+	}
+	return campaigns, nil
 }

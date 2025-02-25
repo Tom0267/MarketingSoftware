@@ -343,18 +343,20 @@ func handlePostCampaign(w http.ResponseWriter, r *http.Request) {
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "POST":
-		handlePostList(w, r)
-	case "GET":
-		handleGetList(w, r)
-	default:
-		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "method not allowed"})
+	// query all campaigns from the database
+	campaigns, err := getAllCampaigns()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error fetching campaigns"})
+		return
 	}
+	// Return campaigns in a consistent structure
+	json.NewEncoder(w).Encode(map[string]interface{}{"campaigns": campaigns})
 }
 
-func handleGetList(w http.ResponseWriter, r *http.Request) {
-
+func scriptHandler(w http.ResponseWriter, r *http.Request) {
+	// Set the correct MIME type for JavaScript files
+	w.Header().Set("Content-Type", "application/javascript")
+	// Serve the script.js file
+	http.ServeFile(w, r, "JavaScript/script.js")
 }
-
-func handlePostList(w http.ResponseWriter, r *http.Request) {}
