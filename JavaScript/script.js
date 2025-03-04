@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
     //function to fetch campaigns
     async function fetchCampaigns() {
         try {
-            const response = await fetch("/campaigns/list"); // Update with your actual API if needed
+            const response = await fetch("/campaigns/list"); // update with your actual API if needed
             if (!response.ok) throw new Error("Failed to fetch campaigns");
     
             const data = await response.json(); // data is an object with a 'campaigns' property
@@ -175,26 +175,46 @@ document.addEventListener('DOMContentLoaded', function () {
 
     //load canned email templates
     function loadTemplates() {
-        fetch('/templates', { method: 'GET' })
+        fetch('/templates')
             .then(response => response.json())
-            .then(templates => {
-                if (templates.length === 0) return;
+            .then(data => {
+    
+                if (!data.templates || !Array.isArray(data.templates)) {
+                    console.error("Error: Invalid templates data format");
+                    return;
+                }
+    
                 const templateList = document.getElementById('templateList');
-                templateList.innerHTML = '';
-                templates.forEach(template => {
+                if (!templateList) {
+                    console.error("Error: templateList element not found in the DOM");
+                    return;
+                }
+    
+                templateList.innerHTML = ''; // clear the list before adding new items
+    
+                data.templates.forEach(template => {
                     const li = document.createElement('li');
                     li.classList.add('p-2', 'border', 'rounded', 'cursor-pointer', 'hover:bg-gray-200');
-                    li.textContent = template.Title;
+    
+                    // set template title
+                    li.textContent = template.Title || "Untitled";
+    
                     li.onclick = function () {
-                        quill.root.innerHTML = template.Content;
-                        document.getElementById('templateModal').classList.add('hidden');
+    
+                        // ensure Quill editor is available before setting content
+                        if (typeof quill !== "undefined" && quill.root) {
+                            quill.root.innerHTML = template.Content;
+                            document.getElementById('templateModal').classList.add('hidden');
+                        } else {
+                            console.error("Quill editor is not initialized.");
+                        }
                     };
+    
                     templateList.appendChild(li);
                 });
             })
             .catch(error => {
-                console.error('Error loading templates:', error);
-                showNotification('Error loading templates.', 'error');
+                console.error("Error loading templates:", error);
             });
     }
 
@@ -255,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('campaignForm').addEventListener('submit', function(event) {
         event.preventDefault();
         const campaignName = document.getElementById('campaignName').value.trim();
-        // Convert mailingList from comma-separated string into an array:
+        // convert mailingList from comma-separated string into an array:
         const mailingListValue = document.getElementById('mailingList').value.trim();
         const mailingListArray = mailingListValue
           .split(',')

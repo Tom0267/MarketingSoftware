@@ -26,11 +26,11 @@ func main() {
 	//clearDatabase() //clear database for testing
 
 	//save test template
-	saveTemplate("Welcome", "Welcome to our platform!")
-	createMailingList("test")
+	//saveTemplate("Welcome", "Welcome to our platform!")
+	//createMailingList("test")
 	//create a test user
-	addUser("121year@gmail.com")
-	addSubscriber("test", "121year@gmail.com")
+	//addUser("121year@gmail.com")
+	//addSubscriber("test", "121year@gmail.com")
 
 	//serve the routes
 	http.Handle("/JavaScript/", http.StripPrefix("/JavaScript/", http.FileServer(http.Dir("./JavaScript"))))
@@ -41,6 +41,6 @@ func main() {
 	http.HandleFunc("/campaigns", campaignHandler)
 
 	//start the web server
-	log.Fatal(http.ListenAndServe(":8080", nil))
 	fmt.Println("Server started on localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }

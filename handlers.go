@@ -35,15 +35,24 @@ func templatesHandler(w http.ResponseWriter, r *http.Request) {
 
 // templateHandler returns all email templates as json
 func templateGetter(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	// get templates from the database
 	templates, err := getTemplates()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to fetch templates: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error": "failed to fetch templates: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
 
-	// return templates as json
-	json.NewEncoder(w).Encode(templates)
+	// wrap response in an object with a "templates" key
+	response := map[string]interface{}{
+		"templates": templates,
+	}
+
+	log.Println("Sending templates:", response)
+
+	// encode and send response
+	json.NewEncoder(w).Encode(response)
 }
 
 // saveTemplateHandler allows saving a new email template
@@ -349,13 +358,13 @@ func listHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error fetching campaigns"})
 		return
 	}
-	// Return campaigns in a consistent structure
+	// return campaigns
 	json.NewEncoder(w).Encode(map[string]interface{}{"campaigns": campaigns})
 }
 
 func scriptHandler(w http.ResponseWriter, r *http.Request) {
-	// Set the correct MIME type for JavaScript files
+	// set the correct MIME type
 	w.Header().Set("Content-Type", "application/javascript")
-	// Serve the script.js file
+	// serve the script.js file
 	http.ServeFile(w, r, "JavaScript/script.js")
 }

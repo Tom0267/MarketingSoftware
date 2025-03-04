@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -64,18 +65,37 @@ func initDB(dbPath string) (*sql.DB, error) {
 
 // saveTemplate inserts a new email template into the database
 func saveTemplate(title, content string) error {
-	exists := database.QueryRow(`SELECT id FROM email_templates WHERE title = ?`, title)
-	if exists != nil {
+	var id int
+	err := database.QueryRow(`SELECT id FROM email_templates WHERE title = ?`, title).Scan(&id)
+	if err != sql.ErrNoRows {
+		if err != nil {
+			return fmt.Errorf("error checking template title: %v", err)
+		}
 		return fmt.Errorf("template title already exists")
 	}
 
 	insertSQL := `INSERT INTO email_templates(title, content) VALUES (?, ?)`
-	_, err := database.Exec(insertSQL, title, content)
+	_, err = database.Exec(insertSQL, title, content)
 	return err
+}
+
+func checkTemplatesExists() bool {
+	var id int
+	err := database.QueryRow(`SELECT id FROM email_templates`).Scan(&id)
+	if err == sql.ErrNoRows {
+		log.Println("No templates found in the database")
+		return false
+	} else if err != nil {
+		log.Println("Error checking templates:", err)
+		return false
+	}
+	log.Println("Template found with ID:", id)
+	return true
 }
 
 // getTemplates retrieves all email templates from the database
 func getTemplates() ([]EmailTemplate, error) {
+	checkTemplatesExists()
 	rows, err := database.Query(`SELECT id, title, content FROM email_templates`)
 	if err != nil {
 		return nil, fmt.Errorf("error querying templates: %v", err)
@@ -90,20 +110,31 @@ func getTemplates() ([]EmailTemplate, error) {
 		}
 		templates = append(templates, t)
 	}
+	//verify if there are any templates
+	if len(templates) == 0 {
+		return nil, fmt.Errorf("no templates found")
+	}
 	return templates, nil
 }
 
 func createMailingList(name string) error {
-	exists := database.QueryRow(`SELECT id FROM campaigns WHERE name = ?`, name)
-	if exists != nil {
+	var id int
+	err := database.QueryRow(`SELECT id FROM campaigns WHERE name = ?`, name).Scan(&id)
+
+	// check if the campaign already exists
+	if err == nil {
 		return fmt.Errorf("mailing list name already exists")
+	} else if err != sql.ErrNoRows {
+		return fmt.Errorf("error checking campaign existence: %v", err)
 	}
 
-	_, err := database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
+	// insert new campaign
+	_, err = database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
 	if err != nil {
-		return fmt.Errorf("Error creating campaign: %v", err)
+		return fmt.Errorf("error creating campaign: %v", err)
 	}
-	fmt.Println("Campaign created")
+
+	fmt.Println("Campaign created successfully:", name)
 	return nil
 }
 
@@ -114,7 +145,7 @@ func addSubscriber(listName, email string) error {
 	if err != nil {
 		return fmt.Errorf("error adding subscriber: %v", err)
 	}
-	//check campaign exists
+	// check campaign exists
 	err = database.QueryRow(`SELECT id FROM campaigns WHERE name = ?`, listName).Scan(&id)
 	if err != nil {
 		return fmt.Errorf("error adding subscriber: %v", err)
@@ -153,11 +184,15 @@ func getSubscribers(campaignName string) ([]string, error) {
 
 func saveCampaign(name string, emails []string) error {
 	//check if the campaign already exists
-	_, exists := database.Query(`SELECT id FROM campaigns WHERE name = ?`, name)
-	if exists != nil {
+	var exists int
+	err := database.QueryRow(`SELECT id FROM campaigns WHERE name = ?`, name).Scan(&exists)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("error checking campaign existence: %v", err)
+	}
+	if exists > 0 {
 		return fmt.Errorf("campaign name already exists")
 	}
-	_, err := database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
+	_, err = database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
 	if err != nil {
 		return fmt.Errorf("error creating campaign: %v", err)
 	}
@@ -265,6 +300,12 @@ func getAllCampaigns() ([]string, error) {
 		}
 		campaigns = append(campaigns, name)
 	}
+
+	// ensure an empty array is returned instead of `nil`
+	if campaigns == nil {
+		campaigns = []string{}
+	}
+
 	return campaigns, nil
 }
 
