@@ -33,8 +33,8 @@ func main() {
 	//addSubscriber("test", "121year@gmail.com")
 
 	//serve the routes
-	http.Handle("/JavaScript/", http.StripPrefix("/JavaScript/", http.FileServer(http.Dir("./JavaScript"))))
-	http.HandleFunc("/JavaScript/script.js", scriptHandler)
+	fs := http.FileServer(http.Dir("JavaScript"))
+	http.Handle("/js/", http.StripPrefix("/js/", fs))
 	http.HandleFunc("/composer", composerHandler)
 	http.HandleFunc("/templates", templatesHandler)
 	http.HandleFunc("/campaigns/list", listHandler)

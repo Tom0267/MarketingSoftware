@@ -25,6 +25,7 @@ type errorMessage struct {
 func templatesHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
+		log.Println("Received request to save template in templatesHandler")
 		saveTemplateHandler(w, r)
 	case "GET":
 		templateGetter(w, r)
@@ -62,21 +63,20 @@ func saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		Title   string `json:"Title"`
 		Content string `json:"Content"`
 	}
-
+	log.Println("Received request to save template")
 	err := json.NewDecoder(r.Body).Decode(&template)
 	if err != nil {
-		http.Error(w, "Invalid input: "+err.Error(), http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorMessage{Message: "failed to decode request body"})
 		return
 	}
 
 	// save the template to the database
 	err = saveTemplate(template.Title, template.Content)
 	if err != nil {
-		http.Error(w, "failed to save template: "+err.Error(), http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMessage{Message: "failed to save template"})
 		return
 	}
-
+	log.Println("Template saved successfully")
 	json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "Template saved successfully!"})
 }
 
@@ -114,20 +114,53 @@ func handleGetComposer(w http.ResponseWriter, r *http.Request) {
 func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 * 1024 * 1024) // 10mb max form size
 	if err != nil {
-		http.Error(w, "form parsing error", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"message": "error parsing form data (max 10mb)"})
 		return
 	}
 
 	// get recipient, subject and body from the form
 	recipientStr := r.FormValue("recipients")
+	campaigns := r.FormValue("campaigns")
 	subject := r.FormValue("subject")
 	body := r.FormValue("body")
 
 	// split recipients by comma and trim spaces
-	recipients := strings.Split(recipientStr, ",")
+	recipients := []string{}
+	for _, r := range strings.Split(recipientStr, ",") {
+		r = strings.TrimSpace(r)
+		if r != "" { // Only add non-empty values
+			recipients = append(recipients, r)
+		}
+	}
+
+	// split campaigns by comma and trim spaces
+	type Campaign struct {
+		Name string `json:"name"`
+	}
+	rawCampaigns := strings.Split(campaigns, ",")
+	campaignList := make([]Campaign, 0, len(rawCampaigns))
+
+	for _, rawCampaign := range rawCampaigns {
+		if cleanedCampaign := strings.TrimSpace(rawCampaign); cleanedCampaign != "" {
+			campaignList = append(campaignList, Campaign{Name: cleanedCampaign})
+		}
+	}
+
+	// get the campaign subscribers
+	for _, campaign := range campaignList {
+		subscribers, err := getSubscribers(campaign.Name)
+		log.Println("Subscribers for campaign", campaign.Name, ":", subscribers)
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]string{"message": "error fetching subscribers for campaign: " + campaign.Name})
+			return
+		}
+		recipients = append(recipients, subscribers...)
+	}
+	log.Println("Recipients:", recipients)
 	for i := range recipients {
 		recipients[i] = strings.TrimSpace(recipients[i])
 	}
+	log.Println("Recipients after trimming:", recipients)
 
 	// get filename from form data (if file is uploaded using chunking)
 	fileName := r.FormValue("filename")
@@ -182,7 +215,7 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// similarly, handle inline images
+		// handle inline images
 		images := make(map[string]string)
 		imageFiles := r.MultipartForm.File["images"]
 		for _, fileHeader := range imageFiles {
@@ -360,11 +393,4 @@ func listHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// return campaigns
 	json.NewEncoder(w).Encode(map[string]interface{}{"campaigns": campaigns})
-}
-
-func scriptHandler(w http.ResponseWriter, r *http.Request) {
-	// set the correct MIME type
-	w.Header().Set("Content-Type", "application/javascript")
-	// serve the script.js file
-	http.ServeFile(w, r, "JavaScript/script.js")
 }

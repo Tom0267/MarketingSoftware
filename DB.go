@@ -65,18 +65,22 @@ func initDB(dbPath string) (*sql.DB, error) {
 
 // saveTemplate inserts a new email template into the database
 func saveTemplate(title, content string) error {
-	var id int
-	err := database.QueryRow(`SELECT id FROM email_templates WHERE title = ?`, title).Scan(&id)
-	if err != sql.ErrNoRows {
-		if err != nil {
-			return fmt.Errorf("error checking template title: %v", err)
-		}
+	var exists int
+	err := database.QueryRow(`SELECT COUNT(*) FROM email_templates WHERE title = ?`, title).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("error checking template existence: %v", err)
+	}
+	if exists > 0 {
 		return fmt.Errorf("template title already exists")
 	}
 
-	insertSQL := `INSERT INTO email_templates(title, content) VALUES (?, ?)`
-	_, err = database.Exec(insertSQL, title, content)
-	return err
+	// insert new template
+	_, err = database.Exec(`INSERT INTO email_templates (title, content) VALUES (?, ?)`, title, content)
+	if err != nil {
+		return fmt.Errorf("error saving template: %v", err)
+	}
+	log.Println("Template saved successfully:", title)
+	return nil
 }
 
 func checkTemplatesExists() bool {
@@ -165,46 +169,118 @@ func addSubscriber(listName, email string) error {
 }
 
 func getSubscribers(campaignName string) ([]string, error) {
-	rows, err := database.Query(`SELECT u.email FROM users u JOIN campaign_subscribers cs ON u.id = cs.subscriber_id JOIN campaigns c ON cs.campaign_id = c.id WHERE c.name = ?`, campaignName)
+	// prepare the query
+	query := `
+		SELECT u.email 
+		FROM users u 
+		JOIN campaign_subscribers cs ON u.id = cs.subscriber_id 
+		JOIN campaigns c ON cs.campaign_id = c.id 
+		WHERE c.name = ?`
+
+	rows, err := database.Query(query, campaignName)
 	if err != nil {
-		return nil, fmt.Errorf("error querying subscribers: %v", err)
+		return nil, fmt.Errorf("database query error: %w", err) // wrap error with context
 	}
 	defer rows.Close()
 
 	var emails []string
+	// use an explicit loop to scan rows efficiently
 	for rows.Next() {
 		var email string
 		if err := rows.Scan(&email); err != nil {
-			return nil, fmt.Errorf("error scanning row: %v", err)
+			return nil, fmt.Errorf("database scan error: %w", err)
 		}
 		emails = append(emails, email)
 	}
+
+	// ensure we check for any iteration errors
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("database row iteration error: %w", err)
+	}
+
 	return emails, nil
 }
 
 func saveCampaign(name string, emails []string) error {
-	//check if the campaign already exists
+	// start a transaction for atomic operations
+	tx, err := database.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %v", err)
+	}
+
+	// check if the campaign already exists
 	var exists int
-	err := database.QueryRow(`SELECT id FROM campaigns WHERE name = ?`, name).Scan(&exists)
-	if err != nil && err != sql.ErrNoRows {
+	err = tx.QueryRow(`SELECT COUNT(*) FROM campaigns WHERE name = ?`, name).Scan(&exists)
+	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("error checking campaign existence: %v", err)
 	}
 	if exists > 0 {
-		return fmt.Errorf("campaign name already exists")
+		tx.Rollback()
+		return fmt.Errorf("campaign name '%s' already exists", name)
 	}
-	_, err = database.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
+
+	// insert the new campaign
+	result, err := tx.Exec(`INSERT INTO campaigns (name) VALUES (?)`, name)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("error creating campaign: %v", err)
 	}
-	//save the subscribers if there are any
-	if len(emails) > 0 {
-		for _, email := range emails {
-			_, err = database.Exec(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id) SELECT c.id, u.id FROM campaigns c, users u WHERE c.name = ? AND u.email = ?`, name, email)
-			if err != nil {
-				return fmt.Errorf("error saving subscribers: %v", err)
-			}
-		}
+
+	// get new campaign ID
+	campaignID64, err := result.LastInsertId()
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("error getting new campaign ID: %v", err)
 	}
+	campaignID := int(campaignID64)
+
+	log.Printf("Campaign '%s' created with ID: %d", name, campaignID)
+
+	// add subscribers to the campaign
+	for _, email := range emails {
+		var userID int
+		err := tx.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&userID)
+
+		// if user does not exist, create the user
+		if err == sql.ErrNoRows {
+			result, err := tx.Exec(`INSERT INTO users (email) VALUES (?)`, email)
+			if err != nil {
+				tx.Rollback()
+				return fmt.Errorf("error adding user '%s': %v", email, err)
+			}
+
+			// get new user ID
+			userID64, err := result.LastInsertId()
+			if err != nil {
+				tx.Rollback()
+				return fmt.Errorf("error getting new user ID: %v", err)
+			}
+			userID = int(userID64)
+
+			log.Printf("New user '%s' added with ID: %d", email, userID)
+		} else if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("error checking user existence: %v", err)
+		}
+
+		// add the user as a subscriber
+		_, err = tx.Exec(`INSERT INTO campaign_subscribers (campaign_id, subscriber_id) VALUES (?, ?)`, campaignID, userID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("error adding subscriber '%s' to campaign '%s': %v", email, name, err)
+		}
+
+		log.Printf("User '%s' subscribed to campaign '%s'", email, name)
+	}
+
+	// commit transaction if everything was successful
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	log.Printf("Campaign '%s' saved successfully with %d subscribers.", name, len(emails))
 	return nil
 }
 
@@ -229,27 +305,23 @@ func deleteTemplate(id int) error {
 func deleteMailingList(name string) error {
 	tx, err := database.Begin()
 	if err != nil {
-		return fmt.Errorf("error beginning transaction: %v", err)
+		return fmt.Errorf("error starting transaction: %v", err)
 	}
 
-	//delete subscribers associated with the mailing list
-	deleteSubscribersSQL := `DELETE FROM campaign_subscribers WHERE campaign_id = (SELECT id FROM campaigns WHERE name = ?)`
-	_, err = tx.Exec(deleteSubscribersSQL, name)
-	if err != nil {
+	// delete subscribers first
+	if _, err := tx.Exec(`DELETE FROM campaign_subscribers WHERE campaign_id = (SELECT id FROM campaigns WHERE name = ?)`, name); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("error deleting subscribers: %v", err)
 	}
 
-	//delete the mailing list
-	deleteMailingListSQL := `DELETE FROM campaigns WHERE name = ?`
-	_, err = tx.Exec(deleteMailingListSQL, name)
-	if err != nil {
+	// delete the campaign itself
+	if _, err := tx.Exec(`DELETE FROM campaigns WHERE name = ?`, name); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("error deleting mailing list: %v", err)
 	}
 
-	err = tx.Commit()
-	if err != nil {
+	// commit transaction if all operations succeed
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
 	return nil
@@ -261,7 +333,10 @@ func removeSubscriber(listName, email string) error {
 		return fmt.Errorf("error starting transaction: %v", err)
 	}
 
-	deleteSQL := `DELETE FROM campaign_subscribers WHERE subscriber_id = (SELECT id FROM users WHERE email = ?) AND campaign_id = (SELECT id FROM campaigns WHERE name = ?)`
+	deleteSQL := `
+		DELETE FROM campaign_subscribers 
+		WHERE subscriber_id = (SELECT id FROM users WHERE email = ?) 
+		AND campaign_id = (SELECT id FROM campaigns WHERE name = ?)`
 
 	_, err = tx.Exec(deleteSQL, email, listName)
 	if err != nil {
@@ -278,9 +353,9 @@ func removeSubscriber(listName, email string) error {
 }
 
 func addUser(email string) error {
-	_, err := database.Exec(`INSERT INTO users (name) VALUES (?)`, email)
+	_, err := database.Exec(`INSERT INTO users (email) VALUES (?)`, email)
 	if err != nil {
-		return fmt.Errorf("error creating campaign: %v", err)
+		return fmt.Errorf("error adding user: %v", err)
 	}
 	return nil
 }
@@ -325,7 +400,7 @@ func clearDatabase() {
 	for _, table := range tables {
 		_, err := database.Exec(fmt.Sprintf("DELETE FROM %s", table))
 		if err != nil {
-			fmt.Printf("error clearing table %s: %v\n", table, err)
+			log.Printf("Error clearing table %s: %v\n", table, err)
 		}
 	}
 }

@@ -30,6 +30,19 @@ func getRecipients() []string {
 	return recipients
 }
 
+func removeDuplicates(elements []string) []string {
+	encountered := make(map[string]struct{})
+	var result []string
+
+	for _, v := range elements {
+		if _, exists := encountered[v]; !exists {
+			encountered[v] = struct{}{} // mark as seen
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
 func sendMail(recipients []string, subject string, body string, attachments []string, images map[string]string) error {
 	// load environment variables from .env file
 	err := godotenv.Load()
@@ -50,6 +63,9 @@ func sendMail(recipients []string, subject string, body string, attachments []st
 
 	// create a new dialer to connect to the smtp server
 	dialer := mail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPassword)
+
+	// check duplicate recipients
+	recipients = removeDuplicates(recipients)
 
 	// create a new email message
 	for i := range recipients {
