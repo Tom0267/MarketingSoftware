@@ -25,6 +25,7 @@ type errorMessage struct {
 func templatesHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
+		log.Println("Received request to save template in templatesHandler")
 		saveTemplateHandler(w, r)
 	case "GET":
 		templateGetter(w, r)
@@ -35,41 +36,24 @@ func templatesHandler(w http.ResponseWriter, r *http.Request) {
 
 // templateHandler returns all email templates as json
 func templateGetter(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	// get templates from the database
 	templates, err := getTemplates()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to fetch templates: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error": "failed to fetch templates: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
 
-	// return templates as json
-	json.NewEncoder(w).Encode(templates)
-}
-
-// insertTemplateHandler allows inserting a template into the email body
-func insertTemplateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-		templateIDStr := r.URL.Query().Get("template_id")
-		templateID, err := strconv.Atoi(templateIDStr)
-		if err != nil {
-			http.Error(w, "invalid template ID", http.StatusBadRequest)
-			return
-		}
-
-		var template EmailTemplate
-		err = db.QueryRow(`SELECT id, title, content FROM email_templates WHERE id = ?`, templateID).Scan(&template.ID, &template.Title, &template.Content)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to fetch template: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		// return the template content as json
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(template); err != nil {
-			http.Error(w, fmt.Sprintf("error encoding template: %v", err), http.StatusInternalServerError)
-		}
+	// wrap response in an object with a "templates" key
+	response := map[string]interface{}{
+		"templates": templates,
 	}
+
+	log.Println("Sending templates:", response)
+
+	// encode and send response
+	json.NewEncoder(w).Encode(response)
 }
 
 // saveTemplateHandler allows saving a new email template
@@ -79,21 +63,20 @@ func saveTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		Title   string `json:"Title"`
 		Content string `json:"Content"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&template)
+	log.Println("Received request to save template")
+	err := json.NewDecoder(r.Body).Decode(&template)
 	if err != nil {
-		http.Error(w, "Invalid input: "+err.Error(), http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorMessage{Message: "failed to decode request body"})
 		return
 	}
 
 	// save the template to the database
 	err = saveTemplate(template.Title, template.Content)
 	if err != nil {
-		http.Error(w, "failed to save template: "+err.Error(), http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errorMessage{Message: "failed to save template"})
 		return
 	}
-
+	log.Println("Template saved successfully")
 	json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "Template saved successfully!"})
 }
 
@@ -131,20 +114,53 @@ func handleGetComposer(w http.ResponseWriter, r *http.Request) {
 func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 * 1024 * 1024) // 10mb max form size
 	if err != nil {
-		http.Error(w, "form parsing error", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"message": "error parsing form data (max 10mb)"})
 		return
 	}
 
 	// get recipient, subject and body from the form
 	recipientStr := r.FormValue("recipients")
+	campaigns := r.FormValue("campaigns")
 	subject := r.FormValue("subject")
 	body := r.FormValue("body")
 
 	// split recipients by comma and trim spaces
-	recipients := strings.Split(recipientStr, ",")
+	recipients := []string{}
+	for _, r := range strings.Split(recipientStr, ",") {
+		r = strings.TrimSpace(r)
+		if r != "" { // Only add non-empty values
+			recipients = append(recipients, r)
+		}
+	}
+
+	// split campaigns by comma and trim spaces
+	type Campaign struct {
+		Name string `json:"name"`
+	}
+	rawCampaigns := strings.Split(campaigns, ",")
+	campaignList := make([]Campaign, 0, len(rawCampaigns))
+
+	for _, rawCampaign := range rawCampaigns {
+		if cleanedCampaign := strings.TrimSpace(rawCampaign); cleanedCampaign != "" {
+			campaignList = append(campaignList, Campaign{Name: cleanedCampaign})
+		}
+	}
+
+	// get the campaign subscribers
+	for _, campaign := range campaignList {
+		subscribers, err := getSubscribers(campaign.Name)
+		log.Println("Subscribers for campaign", campaign.Name, ":", subscribers)
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]string{"message": "error fetching subscribers for campaign: " + campaign.Name})
+			return
+		}
+		recipients = append(recipients, subscribers...)
+	}
+	log.Println("Recipients:", recipients)
 	for i := range recipients {
 		recipients[i] = strings.TrimSpace(recipients[i])
 	}
+	log.Println("Recipients after trimming:", recipients)
 
 	// get filename from form data (if file is uploaded using chunking)
 	fileName := r.FormValue("filename")
@@ -199,7 +215,7 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// similarly, handle inline images
+		// handle inline images
 		images := make(map[string]string)
 		imageFiles := r.MultipartForm.File["images"]
 		for _, fileHeader := range imageFiles {
@@ -231,13 +247,13 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 
 		err := sendMail(recipients, subject, body, attachments, images)
 		if err != nil {
-			http.Error(w, "error sending email", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error sending email"})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message": "email sent successfully"})
+		json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "email sent successfully"})
 
 		clearTempFiles() // clear temp files after 30 seconds
 		return
@@ -246,7 +262,7 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	// process chunked upload
 	totalChunks, err := strconv.Atoi(totalChunksStr)
 	if err != nil {
-		http.Error(w, "error converting total_chunks to int", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error converting total_chunks to int"})
 		return
 	}
 
@@ -254,7 +270,7 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	if chunkIndex == "0" {
 		outFile, err := os.Create(outFileName)
 		if err != nil {
-			http.Error(w, "error creating file", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error creating file"})
 			return
 		}
 		outFile.Close()
@@ -263,21 +279,21 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 	// read the current chunk and append to the file
 	fileChunk, _, err := r.FormFile("attachment_chunk")
 	if err != nil {
-		http.Error(w, "error reading chunk", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error reading chunk"})
 		return
 	}
 	defer fileChunk.Close()
 
 	outFile, err := os.OpenFile(outFileName, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		http.Error(w, "error opening file", http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error opening file"})
 		return
 	}
 	defer outFile.Close()
 
 	_, err = io.Copy(outFile, fileChunk)
 	if err != nil {
-		http.Error(w, "error saving chunk", http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error saving chunk"})
 		return
 	}
 
@@ -288,20 +304,20 @@ func handlePostComposer(w http.ResponseWriter, r *http.Request) {
 
 		err = sendMail(recipients, subject, body, attachments, images)
 		if err != nil {
-			http.Error(w, "error sending email", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error sending email"})
 			return
 		}
 
 		err = os.Remove(outFileName)
 		if err != nil {
-			http.Error(w, "error deleting file", http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error deleting files"})
 			return
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "chunk uploaded successfully"})
+	json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "chunk uploaded successfully"})
 }
 
 func clearTempFiles() {
@@ -316,78 +332,65 @@ func clearTempFiles() {
 	}()
 }
 
-func addMailingListHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+func campaignHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		handlePostCampaign(w, r)
+	case "GET":
+		handleGetCampaign(w, r)
+	default:
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "method not allowed"})
 	}
-
-	var req struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
-		return
-	}
-
-	if err := addMailingList(req.Name); err != nil {
-		http.Error(w, fmt.Sprintf("failed to add mailing list: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Mailing list added successfully"})
 }
 
-func subscribeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+func handleGetCampaign(w http.ResponseWriter, r *http.Request) {
+	//get the name of the requested campaign
+	campaignName := r.URL.Query().Get("name")
+	if campaignName == "" {
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "missing campaign name"})
 		return
 	}
 
-	var req struct {
-		ListName string `json:"list_name"`
-		Email    string `json:"email"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+	//get the campaign from the database
+	campaign, err := getSubscribers(campaignName)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error fetching campaign"})
 		return
 	}
-
-	if err := addSubscriber(req.ListName, req.Email); err != nil {
-		http.Error(w, fmt.Sprintf("failed to add subscriber: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Subscribed successfully"})
+	json.NewEncoder(w).Encode(campaign)
 }
 
-func sendMailingListHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+func handlePostCampaign(w http.ResponseWriter, r *http.Request) {
+	//parse the request body
+	var campaign struct {
+		Name       string   `json:"campaignName"`
+		Recipients []string `json:"mailingList"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&campaign)
+	if err != nil {
+		fmt.Printf("error decoding campaign\n")
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "Campaign failed to saved"})
 		return
 	}
 
-	var req struct {
-		ListName string `json:"list_name"`
-		Subject  string `json:"subject"`
-		Body     string `json:"body"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+	//save the campaign to the database
+	err = saveCampaign(campaign.Name, campaign.Recipients)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "Campaign failed to saved"})
 		return
 	}
 
-	if err := sendMailingListEmail(req.ListName, req.Subject, req.Body); err != nil {
-		http.Error(w, fmt.Sprintf("failed to send email: %v", err), http.StatusInternalServerError)
+	json.NewEncoder(w).Encode(map[string]string{"success": "true", "message": "Campaign saved successfully!"})
+}
+
+func listHandler(w http.ResponseWriter, r *http.Request) {
+	// query all campaigns from the database
+	campaigns, err := getAllCampaigns()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"success": "false", "message": "error fetching campaigns"})
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Mailing list email sent successfully"})
-
+	// return campaigns
+	json.NewEncoder(w).Encode(map[string]interface{}{"campaigns": campaigns})
 }
